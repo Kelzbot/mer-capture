@@ -233,7 +233,8 @@
   }
 
   .chip.working { background: rgba(45,212,191,0.14); color: var(--teal); border: 1px solid rgba(45,212,191,0.4); }
-  .chip.proposed { background: rgba(251,191,36,0.12); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
+  .chip.partial { background: rgba(251,191,36,0.12); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
+  .chip.proposed { background: rgba(148,163,184,0.12); color: var(--ink-mute); border: 1px solid rgba(148,163,184,0.35); }
 
   .metrics {
     display: grid;
@@ -383,33 +384,44 @@
     <div class="chain">
       <div class="step">
         <span class="k">Input</span>
-        <p>The free-text clinical narrative, exactly as the clinician wrote it.</p>
+        <p>The free-text narrative — pasted into the review view, or one chosen column of an uploaded CSV / XLSX.</p>
+      </div>
+      <span class="arrow">›</span>
+      <div class="step">
+        <span class="k">De-identify</span>
+        <p>On this device, before any network call. Labelled IDs, Nigerian phone numbers and labelled or titled names become tokens.</p>
       </div>
       <span class="arrow">›</span>
       <div class="step">
         <span class="k">AI</span>
-        <p>LLM extraction to a fixed JSON schema. Every field carries a confidence score and the verbatim source span it came from.</p>
+        <p>Only the de-identified text is sent. Extraction to a fixed JSON schema; every field carries a confidence score and a verbatim source span.</p>
       </div>
       <span class="arrow">›</span>
       <div class="step">
         <span class="k">Output</span>
-        <p>Structured SOAP note, ICD-10 code, medications, plan — plus documentation-quality flags.</p>
+        <p>Structured SOAP note, ICD-10 code, medications, plan. Quality flags are then computed by rules, not by the model.</p>
       </div>
       <span class="arrow">›</span>
       <div class="step">
         <span class="k">Human</span>
-        <p>Clinician reviews, edits any field, sees the source sentence behind every extraction, confirms.</p>
+        <p>In the single-note view: edit any field, hover it to highlight its source sentence in the original, sign off by name.</p>
       </div>
       <span class="arrow">›</span>
       <div class="step">
         <span class="k">Action</span>
-        <p>The confirmed record exports to the EMR / reporting pipeline.</p>
+        <p>The confirmed record downloads as CSV. EMR / FHIR mapping is proposed, not built.</p>
       </div>
     </div>
 
-    <div class="card">
-      <p class="label">Why AI is justified</p>
-      <p>The input is unstructured free text carrying clinical abbreviations, dictation artefacts and inconsistent phrasing — rules and keyword search cannot reliably parse it.</p>
+    <div class="grid g2">
+      <div class="card">
+        <p class="label">Why AI is justified</p>
+        <p>The input is unstructured free text carrying clinical abbreviations, dictation artefacts and inconsistent phrasing — rules and keyword search cannot reliably parse it.</p>
+      </div>
+      <div class="card amber">
+        <p class="label">Where the human actually sits</p>
+        <p>The review-and-sign-off gate exists in the single-note view. Batch mode is an analyst path — dataset-wide quality and evaluation — and has no per-record sign-off yet.</p>
+      </div>
     </div>
 
     <div class="statement push">
@@ -435,54 +447,72 @@
       </thead>
       <tbody>
         <tr>
-          <td class="component">LLM extraction pipeline — narrative → schema with confidence and source spans</td>
+          <td class="component">LLM extraction — narrative → fixed JSON schema</td>
           <td><span class="chip working">WORKING</span></td>
-          <td class="detail">Live against the organiser dataset</td>
-          <td class="detail">Broader schema coverage</td>
+          <td class="detail">Per-field confidence and a verbatim source span, located back in the note</td>
+          <td class="detail">A scored run on the organiser dataset; broader schema coverage</td>
         </tr>
         <tr>
-          <td class="component">Client-side de-identification — redacts names, phone numbers and hospital IDs before any API call</td>
-          <td><span class="chip working">WORKING</span></td>
-          <td class="detail">NDPA-aligned data handling</td>
-          <td class="detail">Formal privacy audit</td>
+          <td class="component">Client-side de-identification</td>
+          <td><span class="chip partial">PARTIAL</span></td>
+          <td class="detail">Nigerian phone numbers, labelled hospital / file / patient IDs, slash-delimited codes, and names that are labelled or titled — tokenised before any network call</td>
+          <td class="detail">A bare name in running prose is not caught. Needs a name model or lexicon, and a formal privacy audit</td>
         </tr>
         <tr>
           <td class="component">Documentation quality rules — deterministic</td>
           <td><span class="chip working">WORKING</span></td>
-          <td class="detail">Missing ICD-10, plan without diagnosis, incomplete SOAP, low-confidence flags</td>
+          <td class="detail">Six rules: diagnosis without ICD-10, plan without diagnosis, complaint / diagnosis keyword mismatch, medications absent from the plan, incomplete SOAP per core section, low-confidence diagnosis</td>
           <td class="detail">Clinician-validated rule set</td>
         </tr>
         <tr>
           <td class="component">Batch processing across a full dataset</td>
           <td><span class="chip working">WORKING</span></td>
-          <td class="detail">Scale beyond a single-note demo</td>
+          <td class="detail">Three concurrent extractions, cancellable, one failed row does not stop the run</td>
           <td class="detail">Throughput and cost at facility volume</td>
         </tr>
         <tr>
-          <td class="component">Evaluation harness against reference notes</td>
+          <td class="component">Evaluation harness vs reference fields</td>
           <td><span class="chip working">WORKING</span></td>
-          <td class="detail">Factual-match scoring, not fluency</td>
-          <td class="detail">Larger held-out set, clinician adjudication</td>
+          <td class="detail">Factual-match scoring, not fluency: exact, token F1, ICD-10 exact and category, hallucination, omission, negation inversion, on a seeded held-out split</td>
+          <td class="detail">A run on the organiser dataset; the non-AI baseline; clinician adjudication</td>
+        </tr>
+        <tr>
+          <td class="component">Named clinician sign-off gate</td>
+          <td><span class="chip partial">PARTIAL</span></td>
+          <td class="detail">In the single-note view, export is blocked until a named clinician ticks that they checked every field</td>
+          <td class="detail">No per-record sign-off in batch mode — batch export is an analyst path, not a clinical one</td>
+        </tr>
+        <tr>
+          <td class="component">Transmission inspector</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">The exact endpoint, model, full prompt and de-identified payload that left the browser — and the identifier map that did not</td>
+          <td class="detail">Same view for batch runs</td>
+        </tr>
+        <tr>
+          <td class="component">PEPFAR dataset mode — the engine this was adapted from</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">Column auto-mapping, MER indicators that each carry their reason, DQ rules with per-facility scoring</td>
+          <td class="detail">Outside this track's scope</td>
         </tr>
         <tr>
           <td class="component">EMR / FHIR export</td>
           <td><span class="chip proposed">PROPOSED</span></td>
-          <td class="detail">Export path exists as CSV</td>
-          <td class="detail">FHIR resource mapping</td>
+          <td class="detail">CSV download exists today</td>
+          <td class="detail">FHIR resource mapping — not started</td>
         </tr>
         <tr>
           <td class="component">OCR / photo capture of handwritten notes</td>
           <td><span class="chip proposed">PROPOSED</span></td>
-          <td class="detail">Architecture supports an image input stage</td>
-          <td class="detail">Not built</td>
+          <td class="detail">Nothing in the code accepts an image</td>
+          <td class="detail">A new input stage ahead of de-identification — not built</td>
         </tr>
       </tbody>
     </table>
 
     <div class="disclosure push">
       <p><strong style="color:var(--ink-dim)">Disclosure.</strong> The extraction, de-identification and rules engine were originally built for an HIV programme reporting use case and adapted to this track's dataset today. The clinical schema profile, the documentation quality rules and the evaluation harness were built during the event. Gemini 2.5 Flash is a third-party foundation model accessed via API — it is not our model.</p>
-      <p style="margin-top:0.55rem"><strong style="color:var(--ink-dim)">Stack.</strong> React, TypeScript, Tailwind, Vite, PapaParse, SheetJS and lucide-react — all open source.</p>
-      <p style="margin-top:0.55rem"><strong style="color:var(--ink-dim)">Models.</strong> No model was trained or fine-tuned. The only AI component is Gemini 2.5 Flash accessed via API, with Anthropic Claude selectable as an alternative provider at runtime.</p>
+      <p style="margin-top:0.55rem"><strong style="color:var(--ink-dim)">Stack.</strong> React 19, TypeScript, Tailwind 4, Vite, PapaParse, SheetJS, lucide-react and the Anthropic SDK — all open source. No charting library; the bars are CSS.</p>
+      <p style="margin-top:0.55rem"><strong style="color:var(--ink-dim)">Models.</strong> No model was trained or fine-tuned. The only AI component is a hosted foundation model called over HTTPS. Two providers are wired up in <span class="mono">extract.ts</span> and chosen at runtime: Google <span class="mono">gemini-2.5-flash</span> (default) and Anthropic <span class="mono">claude-sonnet-4-6</span>. The key is entered in the page, kept in memory, and sent only to the provider you pick.</p>
     </div>
   </section>
 
@@ -502,11 +532,11 @@
       </div>
       <div class="card">
         <p class="label">Ground truth</p>
-        <p>The reference structured fields paired with each narrative in the dataset.</p>
+        <p>The reference structured fields paired with each narrative. Extraction sees the narrative alone; only fields with a matching reference column are scored.</p>
       </div>
       <div class="card teal">
         <p class="label">Held-out set</p>
-        <p><span class="ph" data-ph="TEST_SET_SIZE">{{TEST_SET_SIZE}}</span> records, seeded random split, never used during prompt development.</p>
+        <p><span class="ph" data-ph="TEST_SET_SIZE">{{TEST_SET_SIZE}}</span> records — a seeded shuffle, default 20%, with the seed and set size shown on screen so the split is reproducible and stated. The prompt is fixed in <span class="mono">extract.ts</span> and holds no dataset-specific examples.</p>
       </div>
     </div>
 
@@ -520,6 +550,15 @@
         <div class="metric"><span class="k">Hallucination rate</span><span class="v ph" data-ph="HALLUCINATION_RATE">{{HALLUCINATION_RATE}}</span></div>
         <div class="metric"><span class="k">Negation errors</span><span class="v ph" data-ph="NEGATION_ERRORS">{{NEGATION_ERRORS}}</span></div>
       </div>
+      <p class="disclosure" style="margin-top:0.7rem">
+        <strong style="color:var(--ink-dim)">Definitions, as implemented.</strong>
+        <em>Exact</em> — equality after lowercasing, collapsing whitespace and stripping trailing punctuation; macro-averaged across fields, micro also reported.
+        <em>Token F1</em> — bag-of-words F1 with stopwords removed, so correct content phrased differently still scores.
+        <em>ICD-10</em> — full code, and separately the 3-character category (J45.9 counts against J45.0).
+        <em>Hallucination</em> — field populated where the reference is empty, over the count of empty references.
+        <em>Omission</em> — field empty where the reference is not, over the count of scored pairs.
+        <em>Negation errors</em> — term-level polarity inversions: a term the reference denies that the extraction asserts, or the reverse. Every number carries its denominator on screen.
+      </p>
     </div>
 
     <div class="grid g2">
@@ -554,7 +593,7 @@
     <div class="grid g3">
       <div class="card teal">
         <p class="label">Deployment context</p>
-        <p>Browser-based. No server, no GPU. Runs on an ordinary facility laptop. De-identification happens on the device before any network call.</p>
+        <p>Browser-based. No server of ours, no GPU. Runs on an ordinary facility laptop. De-identification happens on the device — but the call to the model provider still needs the internet, so this is not an offline tool.</p>
       </div>
       <div class="card amber">
         <p class="label">Biggest assumption</p>
@@ -568,14 +607,15 @@
 
     <div class="grid g2">
       <div class="card">
-        <p class="label">Safeguards</p>
+        <p class="label">Safeguards — all of these are in the code</p>
         <ul>
-          <li>Confidence score on every field.</li>
-          <li>Source span shown for every extraction — verifiable against the original text at a glance.</li>
-          <li>Nothing exports without named clinician confirmation.</li>
-          <li>An <span class="mono">unable to determine</span> state rather than a guess when a field is absent.</li>
-          <li>Deterministic rules for all derived flags — no metric is model-generated.</li>
-          <li>On-device de-identification. No data persisted to storage.</li>
+          <li>Confidence score on every extracted field.</li>
+          <li>Source span on every field, located back in the note — hover a field and the sentence highlights in the original.</li>
+          <li>Named sign-off gate: in the single-note view, export stays disabled until a clinician types their name and ticks the review box. <span class="amber">Batch export is not yet gated.</span></li>
+          <li>Absence is a valid answer — the model is told to omit rather than guess, and empty values are dropped before they reach a field.</li>
+          <li>Deterministic rules for every derived flag and metric — no number on screen is model-generated.</li>
+          <li>De-identification on device before any call, and an inspector showing the exact prompt and payload that left the browser alongside the identifier map that did not.</li>
+          <li>No storage of any kind — no <span class="mono">localStorage</span>, no server, nothing survives the tab.</li>
         </ul>
       </div>
       <div class="card">
@@ -592,6 +632,7 @@
     <div class="never">
       <p class="label">Our AI must never</p>
       <p>Generate a diagnosis, a code, or a clinical fact that is not present in the source note — or export any record without named clinician confirmation.</p>
+      <p style="margin-top:0.6rem;font-size:clamp(0.76rem,0.98vw,1rem);color:var(--ink-mute)">Enforced today in the single-note view. Batch mode exports without a per-record gate — closing that is the first thing on the list, and we would not run a pilot until it is closed.</p>
     </div>
 
     <div class="card teal push">
