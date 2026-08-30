@@ -1,45 +1,141 @@
 # MER Capture
 
-**A PEPFAR indicator and data-quality workbench for Nigerian HIV programme data. Runs entirely in the browser.**
+**IRCE AI Hackathon 2026 — Track 2: AI-Assisted Clinical Documentation**
 
-Live demo: https://kelzbot.github.io/mer-capture/
+Converts free-text clinical consultation notes into structured, coded documentation with verifiable provenance and automated documentation-quality checks.
+
+**Live:** https://kelzbot.github.io/mer-capture/ · **Pitch deck:** [`pitch/index.html`](pitch/index.html)
 
 ---
 
 ## The problem
 
-Nigeria runs one of the largest HIV treatment programmes in the world, and every facility in it reports the same PEPFAR MER indicators every quarter — TX_CURR, TX_NEW, TX_ML, TX_PVLS, TB_STAT, PMTCT, EID.
+In Nigerian secondary and tertiary facilities the same clinical encounter is documented by hand three times: the clinician writes a free-text note, someone re-keys it into the EMR, and someone else codes the diagnosis for reporting. Each hop is manual and unverifiable.
 
-The reporting itself is the bottleneck:
+The result is incomplete SOAP notes, diagnoses that never get coded, and treatment plans separated from the diagnosis that justifies them. That degrades continuity of care and corrupts facility reporting — which surfaces later as data quality findings against the facility.
 
-- **The data arrives dirty.** One export mixes `14/08/2023` and `14-Aug-23` in the same column. Viral loads come back as `TND`, `<20`, `1,450`, `Not Detected`, `LDL`, or blank. Missing values are spelled `NA`, `-`, `999`, `NIL`, `Unknown`, or nothing at all. Every M&E officer writes the same Excel cleanup by hand, differently.
-- **Every facility names its columns differently.** `Patient ID`, `Hosp No`, `PEPID`, `UID` are the same field. Mapping them is manual work repeated for every site, every quarter.
-- **Indicator definitions get applied inconsistently.** TX_CURR is defined on `next_pickup_date + 28 days`, not last visit date — a common shortcut that silently inflates or deflates the number. Nobody downstream can see which rule was used.
-- **Errors are found after submission, not before.** ART start dates before HIV confirmation, pregnancy recorded for male patients, EID results dated before the assay ran, samples stuck at the lab for 60 days — these surface in a DQA months later, when they can't be fixed.
-- **Much of the source data isn't tabular at all.** It's a clinic note, a DBS request form, a scanned register — and it has to be typed into a spreadsheet before any of the above can even begin.
+**Problem statement:** Clinicians need a better way to convert free-text consultation notes into complete, coded, structured documentation, because manual transcription and coding is repeated, inconsistent and unverifiable, resulting in incomplete records and unreliable facility reporting.
 
-The consequence: the numbers a facility reports are only loosely connected to the care it actually delivered, and nobody can audit the gap.
+---
 
-## What this does
+## The solution
 
-Four things, in one page, with no server and no data leaving the machine.
+```
+INPUT              AI                    OUTPUT              HUMAN            ACTION
+free-text    →  LLM extraction    →  structured SOAP  →  clinician     →  confirmed record
+clinical        to fixed JSON        note, ICD-10,       reviews,          exports to EMR /
+narrative       schema, with         medications,        edits, sees       reporting pipeline
+                confidence +         plan, quality       source span,
+                source spans         flags               confirms
+```
 
-**1. Ingests messy real-world files.** CSV and XLSX. Excel date serials, day-first ambiguity, long-format visit logs reduced to one row per patient. 14 date formats, 12 flavours of missing, viral-load qualitatives normalised to a real suppression flag.
+### Why AI is justified
 
-**2. Auto-maps columns.** An alias dictionary plus fuzzy token matching maps site-specific headers onto canonical fields, scores its own confidence, detects whether the file is adult ART or EID, and hands every mapping back to the user as an editable dropdown.
+The input is unstructured free text containing clinical abbreviations, dictation artefacts and inconsistent phrasing. Keyword rules and regex section-splitting cannot reliably parse it. Extraction from natural clinical language is the one job that genuinely requires a language model.
 
-**3. Computes indicators deterministically — no LLM in the numbers, ever.** Every indicator is a pure function returning `met` / `not_met` / `insufficient` **plus a mandatory `reason` string**. That reason is the audit trail: you can see exactly why a patient counted, or why the data couldn't support a verdict. Disaggregated by sex and age band. EID turnaround times (transport / lab / return / total) reported as medians.
+### The architectural line that matters
 
-**4. Flags data quality before submission.** 25+ rules across both profiles, split critical vs warning, with a per-facility score: the percentage of records with zero critical flags. Exportable as CSV.
+**The LLM only reads and extracts. Every quality flag and every derived metric is computed by deterministic rules over the extracted fields.**
 
-**And for the non-tabular half of the problem:** a note-extraction mode that turns a free-text clinic note or DBS form into a structured record. Text is de-identified locally first — names, phone numbers and hospital numbers are replaced with tokens before anything is transmitted — the model returns per-field values with confidence scores and the source span it read them from, and identifiers are re-hydrated client-side. You can inspect the exact payload that left the browser. The extracted record then flows into the same deterministic indicator and DQ engine as everything else.
+No reportable output is ever generated by the model. This makes every flag auditable and means a hallucinated indicator is structurally impossible — the model never computes one.
 
-## Design commitments
+---
 
-- **The LLM extracts; it never counts.** Indicator arithmetic is pure TypeScript, testable and auditable. An LLM is used only to read prose into fields, and every field it produces is shown with its confidence and its source text.
-- **No data leaves the browser unless you send a note for extraction** — and then only after local de-identification, to an endpoint and payload you can see.
-- **No storage.** No localStorage, no sessionStorage, no backend. Close the tab and it's gone.
-- **Every verdict carries its reason.** An indicator result without an explanation is not usable in a programme that gets audited.
+## What is WORKING / SIMULATED / PROPOSED
+
+| Component | Status | Demonstrates | What remains |
+|---|---|---|---|
+| LLM extraction (narrative → JSON schema, with confidence + source spans) | **WORKING** | Live against the organiser dataset | Broader schema coverage |
+| Client-side de-identification | **WORKING** | Names, phone numbers, hospital IDs redacted before any API call | Formal privacy audit |
+| Documentation quality rules (deterministic) | **WORKING** | Missing ICD-10, plan without diagnosis, incomplete SOAP, low-confidence flags | Clinician-validated rule set |
+| Batch processing across a full dataset | **WORKING** | Scale beyond single-note demo | Throughput and cost at facility volume |
+| Evaluation harness vs reference notes | **WORKING** | Factual-match scoring, not fluency | Larger held-out set, clinician adjudication |
+| Named clinician confirmation gate | **WORKING** (single-note flow) | Export blocked until a named clinician confirms review | Per-record sign-off in batch mode |
+| EMR / FHIR export | **PROPOSED** | CSV export path exists | FHIR resource mapping |
+| OCR / photo capture of handwritten notes | **PROPOSED** | Architecture supports an image input stage | Not built |
+
+---
+
+## Disclosure
+
+Required by the participant handbook, stated plainly:
+
+- **Pre-existing:** the extraction pipeline, client-side de-identification, and the deterministic rules/indicator engine were originally built for an HIV programme reporting use case and adapted to this track's dataset.
+- **Built during the event:** the clinical schema profile, the documentation-quality rule set, the evaluation harness, and the reframing of the application to this dataset.
+- **Third-party model:** Gemini 2.5 Flash, accessed via API. This is not our model and we make no claim to it. The provider is swappable at runtime (Anthropic also supported). No model was trained or fine-tuned.
+- **Libraries:** React, TypeScript, Tailwind, Vite, PapaParse, SheetJS, lucide-react, and the Anthropic SDK for the alternative provider. All open source.
+
+---
+
+## Data
+
+**Dataset used:** the organiser-provided Track 2 synthetic clinical encounter dataset. Columns include `clinical_narrative` (input) alongside reference structured fields (`chief_complaint`, `hpi`, `pmh`, `exam`, `differential`, `final_diagnosis`, `icd10`, `investigations`, `medications`, `treatment_plan`, `soap_note`).
+
+**Ground truth:** the reference structured fields paired with each narrative. Extraction runs on the narrative only; the reference fields are used solely for scoring.
+
+**No real patient data was used at any point.** The dataset is synthetic. De-identification runs client-side regardless, before any network call, as a defence-in-depth measure and because the deployment target is real clinical settings under the Nigeria Data Protection Act 2023.
+
+**Data handling:** everything runs in the browser tab. Nothing is uploaded to a server we control, nothing is written to localStorage or sessionStorage, nothing persists after the tab closes. The API key is entered at runtime and held in memory only.
+
+---
+
+## Validation
+
+**Claim:** MER Capture extracts structured clinical fields and ICD-10 codes from free-text consultation notes at a factual-match rate high enough to make clinician review faster than manual documentation, without inventing facts absent from the source.
+
+**Method:** seeded random held-out split, never used during prompt development. Extraction scored against the paired reference fields.
+
+**Metrics:**
+- Field-level exact match (normalised string equality)
+- Token-level F1 (fuzzy match, stopwords removed)
+- ICD-10 exact code accuracy, and category accuracy (first 3 characters)
+- Hallucination rate — extracted field non-empty where reference is empty
+- Omission rate — extracted field empty where reference is non-empty
+- Negation errors — asserted positively where the source denies, or vice versa
+
+**Results:**
+
+| Metric | Result |
+|---|---|
+| Held-out set size | _fill from eval run_ |
+| Overall exact match | _fill_ |
+| Overall token F1 | _fill_ |
+| ICD-10 exact | _fill_ |
+| ICD-10 category | _fill_ |
+| Hallucination rate | _fill_ |
+| Negation errors | _fill_ |
+
+**Success threshold:** ≥85% field-level factual match and <2% hallucination rate would justify a supervised clinical pilot.
+
+**Failure criteria:** hallucination rate above 5%, or any negation inversion on a safety-relevant field (allergy, medication, symptom denial), stops deployment pending redesign.
+
+**Baseline:** the simplest non-AI alternative is regex/keyword section-splitting on the narrative. **Not measured.** We have not run that baseline on the same held-out set, so we make no claim that extraction beats it. Building and scoring that baseline is the next task, and until it is done the metrics above establish absolute performance only, not a margin over the cheap alternative.
+
+**Fairness:** performance should be checked separately across age, sex and presenting condition. Whether the dataset permits this depends on those columns being populated — the harness scores any field with a reference column, so subgroup slicing is a matter of splitting the input rather than new code. Where a subgroup column is absent or sparse, the result is reported as unavailable rather than assumed equal.
+
+---
+
+## Responsible AI and safety
+
+**OUR AI MUST NEVER** generate a diagnosis, a code, or a clinical fact that is not present in the source note, or export any record without named clinician confirmation.
+
+Safeguards implemented:
+
+- **Confidence score on every extracted field**, surfaced in the UI
+- **Source span on every extraction** — the verbatim sentence the value came from, highlighted in the original note, so the clinician verifies in one glance rather than re-reading
+- **Unable-to-determine state** — absence is a valid answer; the model is instructed never to infer or estimate a clinical value
+- **Named clinician confirmation gate** — in the single-note review flow, nothing exports until a clinician enters their name and confirms they have checked every field against the source. Batch mode is an analyst path for dataset-level quality and evaluation, not a clinical export route; extending per-record sign-off to batch is outstanding.
+- **Deterministic derived output** — every quality flag is computed by rules, never by the model
+- **On-device de-identification** before any network call
+- **No persistence** — no storage, no server, nothing retained after the session
+
+**When the AI is wrong:** the source span makes the error visible at the point of review, low confidence is flagged, the clinician overrides, and the confirmed record — not the raw extraction — is what leaves the system.
+
+**Biggest assumption:** that reviewing a pre-filled structured note is meaningfully faster than typing one, and that clinicians will actually correct low-confidence fields rather than rubber-stamp them.
+
+**Biggest risk:** automation bias — a confident, fluent, wrong extraction being confirmed without scrutiny. This is why source spans are mandatory rather than optional.
+
+---
 
 ## Running it
 
@@ -48,30 +144,21 @@ npm install
 npm run dev
 ```
 
-Two dirty sample datasets are bundled and loadable from the Upload step: `public/samples/adult_art_sample.csv` (60 adult ART records) and `public/samples/eid_sample.csv` (40 EID records). Both contain deliberate errors so the DQ engine has something to find.
+Open the local URL. Enter a Gemini or Anthropic API key in the app when prompted — it is held in memory only and never written to disk or committed.
 
-Note extraction needs an API key (Google Gemini or Anthropic Claude), entered in the header. It is held in memory only.
+**Batch notes** is the main flow: upload a CSV/XLSX, select the column holding the free-text narrative, run extraction, review the documentation-quality findings, and run the evaluation if reference columns are present.
+
+No API key is committed to this repository.
 
 ```bash
-npm run build          # typecheck + production build
+npm run build              # typecheck + production build
 npx tsx src/lib/smoke.ts   # parser and indicator assertions
 ```
 
-## Stack
+---
 
-React 19 · TypeScript · Vite · Tailwind · papaparse · SheetJS · lucide-react. No charting library — the bars are CSS.
+## Next 30-day experiment
 
-## Layout
+A time-and-accuracy study with 5 clinicians documenting 20 encounters each — half manually, half by reviewing MER Capture output. Measuring documentation time, field completeness, coding accuracy, and clinician-corrected error rate.
 
-```
-src/lib/normalise.ts    parsers: dates, viral loads, regimens, missing values
-src/lib/aliases.ts      canonical field dictionary for both profiles
-src/lib/mapper.ts       header auto-mapping + profile detection
-src/lib/indicators.ts   PEPFAR MER indicator logic (pure)
-src/lib/dq.ts           data quality rules + facility scoring
-src/lib/ingest.ts       CSV/XLSX parsing, long-format reduction
-src/lib/deidentify.ts   local PII redaction and re-hydration
-src/lib/extract.ts      note → structured record via Gemini or Claude
-src/lib/docQuality.ts   completeness and confidence scoring for extracted notes
-src/lib/smoke.ts        assertions
-```
+That answers the only question that matters for deployment: does reviewing a machine-drafted note actually beat writing one, and does it beat it without introducing errors the clinician doesn't catch.
