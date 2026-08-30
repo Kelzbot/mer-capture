@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MER Capture — pitch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #020617;
+    --panel: #0f172a;
+    --panel-2: #1e293b;
+    --line: #1e293b;
+    --line-soft: #334155;
+    --ink: #f1f5f9;
+    --ink-dim: #cbd5e1;
+    --ink-mute: #94a3b8;
+    --teal: #2dd4bf;
+    --teal-dim: #14b8a6;
+    --amber: #fbbf24;
+    --rose: #fb7185;
+    --mono: 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  body { overflow: hidden; }
+
+  .deck { position: relative; height: 100vh; width: 100vw; }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    gap: clamp(0.9rem, 1.6vh, 1.8rem);
+    padding: clamp(1.6rem, 3.4vw, 4rem) clamp(1.8rem, 4.6vw, 5.5rem) clamp(3.4rem, 5vh, 4.6rem);
+    overflow-y: auto;
+    animation: rise 0.28s ease-out;
+  }
+
+  .slide.active { display: flex; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .slide { animation: none; }
+  }
+
+  .eyebrow {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 2rem;
+    font-family: var(--mono);
+    font-size: clamp(0.68rem, 0.95vw, 0.95rem);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--teal);
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.7rem;
+  }
+
+  .eyebrow .n { color: var(--ink-mute); letter-spacing: 0.1em; }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.75rem, 3.6vw, 3.4rem);
+    line-height: 1.06;
+    letter-spacing: -0.025em;
+    font-weight: 700;
+    max-width: 30ch;
+  }
+
+  h1 .accent { color: var(--teal); }
+
+  h2 {
+    margin: 0;
+    font-size: clamp(1.05rem, 1.7vw, 1.55rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+
+  p { margin: 0; }
+
+  .lede {
+    font-size: clamp(0.98rem, 1.35vw, 1.45rem);
+    line-height: 1.45;
+    color: var(--ink-dim);
+    max-width: 78ch;
+  }
+
+  .label {
+    font-family: var(--mono);
+    font-size: clamp(0.62rem, 0.82vw, 0.8rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    margin-bottom: 0.4rem;
+  }
+
+  .grid {
+    display: grid;
+    gap: clamp(0.8rem, 1.6vw, 1.6rem);
+  }
+
+  .g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+  .g3 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--line-soft);
+    border-radius: 4px;
+    padding: clamp(0.85rem, 1.3vw, 1.35rem) clamp(1rem, 1.5vw, 1.5rem);
+  }
+
+  .card p { font-size: clamp(0.9rem, 1.15vw, 1.2rem); line-height: 1.45; color: var(--ink-dim); }
+  .card.teal { border-left-color: var(--teal); }
+  .card.amber { border-left-color: var(--amber); }
+  .card.rose { border-left-color: var(--rose); }
+
+  .statement {
+    background: linear-gradient(90deg, rgba(45,212,191,0.10), rgba(45,212,191,0.02));
+    border: 1px solid rgba(45,212,191,0.35);
+    border-left: 4px solid var(--teal);
+    border-radius: 4px;
+    padding: clamp(1rem, 1.6vw, 1.6rem) clamp(1.1rem, 2vw, 2rem);
+    font-size: clamp(1rem, 1.45vw, 1.55rem);
+    line-height: 1.4;
+    color: var(--ink);
+    max-width: 92ch;
+  }
+
+  .statement strong { color: var(--teal); font-weight: 600; }
+
+  .never {
+    background: rgba(251,113,133,0.10);
+    border: 1px solid rgba(251,113,133,0.45);
+    border-left: 4px solid var(--rose);
+    border-radius: 4px;
+    padding: clamp(0.9rem, 1.5vw, 1.5rem) clamp(1.1rem, 2vw, 1.8rem);
+  }
+
+  .never .label { color: var(--rose); }
+  .never p { font-size: clamp(0.98rem, 1.3vw, 1.4rem); line-height: 1.4; font-weight: 500; }
+
+  .chain {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: clamp(0.4rem, 0.8vw, 0.9rem);
+  }
+
+  .chain .step {
+    flex: 1 1 9rem;
+    min-width: 8.5rem;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--teal-dim);
+    border-radius: 4px;
+    padding: clamp(0.7rem, 1.1vw, 1.1rem) clamp(0.7rem, 1vw, 1rem);
+  }
+
+  .chain .step .k {
+    font-family: var(--mono);
+    font-size: clamp(0.66rem, 0.9vw, 0.85rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal);
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .chain .step p { font-size: clamp(0.78rem, 1vw, 1.02rem); line-height: 1.35; color: var(--ink-dim); }
+
+  .chain .arrow {
+    align-self: center;
+    color: var(--line-soft);
+    font-size: clamp(1rem, 1.6vw, 1.6rem);
+    font-family: var(--mono);
+  }
+
+  table { width: 100%; border-collapse: collapse; }
+
+  th, td {
+    text-align: left;
+    padding: clamp(0.42rem, 0.85vh, 0.8rem) 0.9rem clamp(0.42rem, 0.85vh, 0.8rem) 0;
+    vertical-align: top;
+    border-bottom: 1px solid var(--line);
+    font-size: clamp(0.78rem, 1.02vw, 1.05rem);
+    line-height: 1.35;
+  }
+
+  th {
+    font-family: var(--mono);
+    font-size: clamp(0.62rem, 0.82vw, 0.8rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    font-weight: 500;
+    border-bottom-color: var(--line-soft);
+  }
+
+  td.component { color: var(--ink); font-weight: 500; }
+  td.detail { color: var(--ink-mute); }
+
+  .chip {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: clamp(0.6rem, 0.78vw, 0.76rem);
+    letter-spacing: 0.12em;
+    padding: 0.2rem 0.55rem;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  .chip.working { background: rgba(45,212,191,0.14); color: var(--teal); border: 1px solid rgba(45,212,191,0.4); }
+  .chip.proposed { background: rgba(251,191,36,0.12); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr));
+    gap: clamp(0.6rem, 1.1vw, 1.1rem);
+  }
+
+  .metric {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: clamp(0.7rem, 1.1vw, 1.15rem);
+  }
+
+  .metric .k {
+    font-family: var(--mono);
+    font-size: clamp(0.58rem, 0.76vw, 0.74rem);
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-mute);
+    display: block;
+  }
+
+  .metric .v {
+    display: block;
+    margin-top: 0.45rem;
+    font-family: var(--mono);
+    font-size: clamp(1.15rem, 2.1vw, 2rem);
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+  }
+
+  .ph {
+    color: var(--amber);
+    border-bottom: 2px dashed rgba(251,191,36,0.55);
+    font-size: 0.82em;
+  }
+
+  ul { margin: 0; padding-left: 1.15rem; }
+
+  li {
+    font-size: clamp(0.86rem, 1.12vw, 1.15rem);
+    line-height: 1.45;
+    color: var(--ink-dim);
+    margin-bottom: 0.3rem;
+  }
+
+  li::marker { color: var(--teal); }
+
+  .disclosure {
+    background: var(--panel-2);
+    border: 1px dashed var(--line-soft);
+    border-radius: 4px;
+    padding: clamp(0.7rem, 1.1vw, 1.1rem) clamp(0.9rem, 1.4vw, 1.4rem);
+    font-size: clamp(0.76rem, 0.98vw, 1rem);
+    line-height: 1.45;
+    color: var(--ink-mute);
+  }
+
+  .mono { font-family: var(--mono); }
+  .teal { color: var(--teal); }
+  .amber { color: var(--amber); }
+  .rose { color: var(--rose); }
+  .push { margin-top: auto; }
+
+  .bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem clamp(1.8rem, 4.6vw, 5.5rem);
+    background: linear-gradient(180deg, rgba(2,6,23,0), var(--bg) 45%);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    color: var(--ink-mute);
+    pointer-events: none;
+  }
+
+  .dots { display: flex; gap: 0.4rem; pointer-events: auto; }
+
+  .dot {
+    width: 1.6rem;
+    height: 3px;
+    background: var(--line-soft);
+    border: 0;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 2px;
+  }
+
+  .dot.on { background: var(--teal); }
+
+  .hint { margin-left: auto; opacity: 0.6; }
+
+  .brand { color: var(--ink-dim); letter-spacing: 0.16em; }
+</style>
+</head>
+<body>
+
+<main class="deck" id="deck">
+
+  <!-- ───────────────────────── 1 · THE PROBLEM ───────────────────────── -->
+  <section class="slide active">
+    <div class="eyebrow"><span>The problem</span><span class="n">MER Capture · 01 / 05</span></div>
+
+    <h1>The same encounter is written down <span class="accent">three times</span>, by three people, and only the last version counts.</h1>
+
+    <div class="grid g2">
+      <div class="card teal">
+        <p class="label">User</p>
+        <p>Clinicians and health information officers in Nigerian secondary and tertiary facilities.</p>
+      </div>
+      <div class="card">
+        <p class="label">Current workflow</p>
+        <p><span class="mono teal">1</span> Clinician writes a free-text consultation note → <span class="mono teal">2</span> someone re-keys it into the EMR → <span class="mono teal">3</span> someone else codes the diagnosis for reporting and billing → <span class="mono teal">4</span> the coded record is what reaches health information systems and funders.</p>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card amber">
+        <p class="label">Pain point</p>
+        <p>The same encounter is manually transcribed and re-interpreted three times. Diagnoses go uncoded, SOAP sections go incomplete, and treatment plans get separated from the diagnoses that justify them.</p>
+      </div>
+      <div class="card rose">
+        <p class="label">Consequence</p>
+        <p>Incomplete and inconsistent documentation degrades continuity of care, corrupts facility reporting, and surfaces later as data quality findings that put programme funding at risk.</p>
+      </div>
+    </div>
+
+    <div class="statement push">
+      <p class="label">Problem statement</p>
+      Clinicians need a better way to convert free-text consultation notes into <strong>complete, coded, structured documentation</strong>, because manual transcription and coding is repeated, inconsistent and unverifiable, resulting in incomplete records and unreliable facility reporting.
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 2 · THE SOLUTION ───────────────────────── -->
+  <section class="slide">
+    <div class="eyebrow"><span>The solution</span><span class="n">MER Capture · 02 / 05</span></div>
+
+    <h1><span class="accent">MER Capture</span> — one pass from narrative to a coded record the clinician signs.</h1>
+
+    <div class="chain">
+      <div class="step">
+        <span class="k">Input</span>
+        <p>The free-text clinical narrative, exactly as the clinician wrote it.</p>
+      </div>
+      <span class="arrow">›</span>
+      <div class="step">
+        <span class="k">AI</span>
+        <p>LLM extraction to a fixed JSON schema. Every field carries a confidence score and the verbatim source span it came from.</p>
+      </div>
+      <span class="arrow">›</span>
+      <div class="step">
+        <span class="k">Output</span>
+        <p>Structured SOAP note, ICD-10 code, medications, plan — plus documentation-quality flags.</p>
+      </div>
+      <span class="arrow">›</span>
+      <div class="step">
+        <span class="k">Human</span>
+        <p>Clinician reviews, edits any field, sees the source sentence behind every extraction, confirms.</p>
+      </div>
+      <span class="arrow">›</span>
+      <div class="step">
+        <span class="k">Action</span>
+        <p>The confirmed record exports to the EMR / reporting pipeline.</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="label">Why AI is justified</p>
+      <p>The input is unstructured free text carrying clinical abbreviations, dictation artefacts and inconsistent phrasing — rules and keyword search cannot reliably parse it.</p>
+    </div>
+
+    <div class="statement push">
+      <p class="label">The architectural line that matters</p>
+      <strong>The LLM only reads and extracts.</strong> Every quality flag and every derived metric is computed by deterministic rules over the extracted fields. <strong>No reportable output is ever generated by the model.</strong>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 3 · SHOW IT ───────────────────────── -->
+  <section class="slide">
+    <div class="eyebrow"><span>Show it</span><span class="n">MER Capture · 03 / 05</span></div>
+
+    <h2>What is actually built, and what is not.</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width:26%">Component</th>
+          <th style="width:11%">Status</th>
+          <th style="width:33%">What it demonstrates</th>
+          <th style="width:30%">What remains</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="component">LLM extraction pipeline — narrative → schema with confidence and source spans</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">Live against the organiser dataset</td>
+          <td class="detail">Broader schema coverage</td>
+        </tr>
+        <tr>
+          <td class="component">Client-side de-identification — redacts names, phone numbers and hospital IDs before any API call</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">NDPA-aligned data handling</td>
+          <td class="detail">Formal privacy audit</td>
+        </tr>
+        <tr>
+          <td class="component">Documentation quality rules — deterministic</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">Missing ICD-10, plan without diagnosis, incomplete SOAP, low-confidence flags</td>
+          <td class="detail">Clinician-validated rule set</td>
+        </tr>
+        <tr>
+          <td class="component">Batch processing across a full dataset</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">Scale beyond a single-note demo</td>
+          <td class="detail">Throughput and cost at facility volume</td>
+        </tr>
+        <tr>
+          <td class="component">Evaluation harness against reference notes</td>
+          <td><span class="chip working">WORKING</span></td>
+          <td class="detail">Factual-match scoring, not fluency</td>
+          <td class="detail">Larger held-out set, clinician adjudication</td>
+        </tr>
+        <tr>
+          <td class="component">EMR / FHIR export</td>
+          <td><span class="chip proposed">PROPOSED</span></td>
+          <td class="detail">Export path exists as CSV</td>
+          <td class="detail">FHIR resource mapping</td>
+        </tr>
+        <tr>
+          <td class="component">OCR / photo capture of handwritten notes</td>
+          <td><span class="chip proposed">PROPOSED</span></td>
+          <td class="detail">Architecture supports an image input stage</td>
+          <td class="detail">Not built</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="disclosure push">
+      <strong style="color:var(--ink-dim)">Disclosure.</strong> The extraction, de-identification and rules engine were originally built for an HIV programme reporting use case and adapted to this track's dataset today. The clinical schema profile, the documentation quality rules and the evaluation harness were built during the event. Gemini 2.5 Flash is a third-party foundation model accessed via API — it is not our model.
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 4 · PROVE IT ───────────────────────── -->
+  <section class="slide">
+    <div class="eyebrow"><span>Prove it</span><span class="n">MER Capture · 04 / 05</span></div>
+
+    <div class="statement">
+      <p class="label">Claim</p>
+      MER Capture extracts structured clinical fields and ICD-10 codes from free-text consultation notes at a <strong>factual-match rate high enough to make clinician review faster than manual documentation</strong>, without inventing facts absent from the source.
+    </div>
+
+    <div class="grid g3">
+      <div class="card">
+        <p class="label">Test population &amp; setting</p>
+        <p>Consultation narratives from the organiser dataset. Deployment target: Nigerian secondary and tertiary outpatient clinics.</p>
+      </div>
+      <div class="card">
+        <p class="label">Ground truth</p>
+        <p>The reference structured fields paired with each narrative in the dataset.</p>
+      </div>
+      <div class="card teal">
+        <p class="label">Held-out set</p>
+        <p><span class="ph" data-ph="TEST_SET_SIZE">{{TEST_SET_SIZE}}</span> records, seeded random split, never used during prompt development.</p>
+      </div>
+    </div>
+
+    <div>
+      <p class="label">Results on the held-out set</p>
+      <div class="metrics">
+        <div class="metric"><span class="k">Exact match</span><span class="v ph" data-ph="EXACT_MATCH_PCT">{{EXACT_MATCH_PCT}}</span></div>
+        <div class="metric"><span class="k">Token F1</span><span class="v ph" data-ph="FUZZY_F1">{{FUZZY_F1}}</span></div>
+        <div class="metric"><span class="k">ICD-10 exact</span><span class="v ph" data-ph="ICD10_EXACT">{{ICD10_EXACT}}</span></div>
+        <div class="metric"><span class="k">ICD-10 category</span><span class="v ph" data-ph="ICD10_CATEGORY">{{ICD10_CATEGORY}}</span></div>
+        <div class="metric"><span class="k">Hallucination rate</span><span class="v ph" data-ph="HALLUCINATION_RATE">{{HALLUCINATION_RATE}}</span></div>
+        <div class="metric"><span class="k">Negation errors</span><span class="v ph" data-ph="NEGATION_ERRORS">{{NEGATION_ERRORS}}</span></div>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card teal">
+        <p class="label">Success threshold</p>
+        <p><span class="teal mono">≥85%</span> field-level factual match and <span class="teal mono">&lt;2%</span> hallucination rate would justify a supervised clinical pilot.</p>
+      </div>
+      <div class="card rose">
+        <p class="label">Failure criteria</p>
+        <p>Any hallucination rate above <span class="rose mono">5%</span>, or any negation inversion on a safety-relevant field — allergy, medication, symptom denial — stops deployment pending redesign.</p>
+      </div>
+    </div>
+
+    <div class="grid g2 push">
+      <div class="card amber">
+        <p class="label">Baseline comparison</p>
+        <p><strong style="color:var(--amber)">Not measured.</strong> We have not yet run regex / keyword section-splitting on the same held-out set, so we cannot claim extraction beats the simplest non-AI alternative. That baseline is the next thing we build.</p>
+      </div>
+      <div class="card amber">
+        <p class="label">Fairness</p>
+        <p>Performance should be checked separately across age, sex and presenting condition. Whether the dataset permits this depends on those columns being populated — where they are absent, the subgroup result is reported as unavailable rather than assumed equal.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 5 · REAL WORLD ───────────────────────── -->
+  <section class="slide">
+    <div class="eyebrow"><span>Real world</span><span class="n">MER Capture · 05 / 05</span></div>
+
+    <h2>What it takes to run this in a clinic, and what happens when it is wrong.</h2>
+
+    <div class="grid g3">
+      <div class="card teal">
+        <p class="label">Deployment context</p>
+        <p>Browser-based. No server, no GPU. Runs on an ordinary facility laptop. De-identification happens on the device before any network call.</p>
+      </div>
+      <div class="card amber">
+        <p class="label">Biggest assumption</p>
+        <p>That reviewing a pre-filled structured note is meaningfully faster than typing it — and that clinicians will actually correct low-confidence fields rather than rubber-stamp them.</p>
+      </div>
+      <div class="card rose">
+        <p class="label">Biggest risk</p>
+        <p>Automation bias. A confident, fluent, wrong extraction being confirmed without scrutiny.</p>
+      </div>
+    </div>
+
+    <div class="grid g2">
+      <div class="card">
+        <p class="label">Safeguards</p>
+        <ul>
+          <li>Confidence score on every field.</li>
+          <li>Source span shown for every extraction — verifiable against the original text at a glance.</li>
+          <li>Nothing exports without named clinician confirmation.</li>
+          <li>An <span class="mono">unable to determine</span> state rather than a guess when a field is absent.</li>
+          <li>Deterministic rules for all derived flags — no metric is model-generated.</li>
+          <li>On-device de-identification. No data persisted to storage.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <p class="label">When it is wrong</p>
+        <ul>
+          <li>The source span makes the error visible at the point of review.</li>
+          <li>Low confidence is flagged before the clinician signs.</li>
+          <li>The clinician overrides.</li>
+          <li>The confirmed record — not the extraction — is what leaves the system.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="never">
+      <p class="label">Our AI must never</p>
+      <p>Generate a diagnosis, a code, or a clinical fact that is not present in the source note — or export any record without named clinician confirmation.</p>
+    </div>
+
+    <div class="card teal push">
+      <p class="label">Next 30 days</p>
+      <p>A time-and-accuracy study: <strong style="color:var(--teal)">5 clinicians × 20 encounters each</strong>, half documented manually and half by reviewing MER Capture output. Measuring documentation time, field completeness, coding accuracy and clinician-corrected error rate.</p>
+    </div>
+  </section>
+
+</main>
+
+<div class="bar">
+  <span class="brand">MER CAPTURE</span>
+  <span class="dots" id="dots"></span>
+  <span id="counter">1 / 5</span>
+  <span class="hint">← → or click</span>
+</div>
+
+<script>
+  (function () {
+    var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+    var dotWrap = document.getElementById('dots');
+    var counter = document.getElementById('counter');
+    var i = 0;
+
+    slides.forEach(function (_, n) {
+      var b = document.createElement('button');
+      b.className = 'dot' + (n === 0 ? ' on' : '');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Slide ' + (n + 1));
+      b.addEventListener('click', function (e) { e.stopPropagation(); go(n); });
+      dotWrap.appendChild(b);
+    });
+
+    var dots = Array.prototype.slice.call(dotWrap.children);
+
+    function go(n) {
+      i = Math.max(0, Math.min(slides.length - 1, n));
+      slides.forEach(function (s, k) { s.classList.toggle('active', k === i); });
+      dots.forEach(function (d, k) { d.classList.toggle('on', k === i); });
+      counter.textContent = (i + 1) + ' / ' + slides.length;
+      slides[i].scrollTop = 0;
+      if (history.replaceState) history.replaceState(null, '', '#' + (i + 1));
+    }
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault(); go(i + 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'Backspace') {
+        e.preventDefault(); go(i - 1);
+      } else if (e.key === 'Home') { go(0); }
+      else if (e.key === 'End') { go(slides.length - 1); }
+      else if (/^[1-9]$/.test(e.key)) { go(parseInt(e.key, 10) - 1); }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (e.target.closest('.dot')) return;
+      go(e.shiftKey ? i - 1 : i + 1);
+    });
+
+    // Fill the {{PLACEHOLDER}} metrics from the URL after an evaluation run, e.g.
+    //   index.html?EXACT_MATCH_PCT=86.4%&FUZZY_F1=0.79&ICD10_EXACT=71.2%&TEST_SET_SIZE=40
+    // Anything not supplied stays visibly marked as unfilled.
+    var params = new URLSearchParams(location.search);
+    if (params.toString()) {
+      document.querySelectorAll('[data-ph]').forEach(function (el) {
+        var v = params.get(el.getAttribute('data-ph'));
+        if (v) { el.textContent = v; el.classList.remove('ph'); }
+      });
+    }
+
+    var start = parseInt((location.hash || '').replace('#', ''), 10);
+    go(isNaN(start) ? 0 : start - 1);
+  })();
+</script>
+
+</body>
+</html>
