@@ -27,6 +27,8 @@ jobs:
       - run: npm run build
       - name: Publish the pitch deck alongside the app
         run: cp -r pitch dist/pitch
+      - name: Publish the submission PDFs
+        run: cp -r submission dist/submission
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

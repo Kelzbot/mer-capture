@@ -335,6 +335,63 @@
   .hint { margin-left: auto; opacity: 0.6; }
 
   .brand { color: var(--ink-dim); letter-spacing: 0.16em; }
+
+  @media print {
+    @page { size: 297mm 167mm; margin: 0; }
+
+    html, body { height: auto; overflow: visible; }
+
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    .deck { height: auto; }
+
+    .slide {
+      position: relative;
+      inset: auto;
+      display: flex !important;
+      height: auto;
+      min-height: 158mm;
+      overflow: visible;
+      animation: none;
+      break-after: page;
+      page-break-after: always;
+      padding: 14mm 16mm 12mm;
+    }
+
+    .slide:last-child { break-after: auto; page-break-after: auto; }
+
+    .card, .statement, .never, .disclosure, .step, .metric, tr { break-inside: avoid; page-break-inside: avoid; }
+
+    .bar { display: none; }
+
+    /* Fixed print sizing: the clamp() scale is tuned for a projector, not a
+       167mm page, so each slide is re-typed here to land on exactly one page. */
+    .slide { gap: 5px; padding: 9mm 11mm 8mm; }
+    .eyebrow { font-size: 8.5px; padding-bottom: 5px; }
+    h1 { font-size: 30px; max-width: 34ch; }
+    h2 { font-size: 17px; }
+    .label { font-size: 7.5px; margin-bottom: 3px; }
+    .card { padding: 7px 10px; }
+    .card p, li { font-size: 10.5px; line-height: 1.35; }
+    li { margin-bottom: 1px; }
+    .grid { gap: 7px; }
+    .statement { font-size: 12.5px; padding: 9px 12px; max-width: none; }
+    .never { padding: 8px 12px; }
+    .never p { font-size: 12px; }
+    .chain { gap: 4px; }
+    .chain .step { padding: 6px 8px; min-width: 0; }
+    .chain .step .k { font-size: 8px; margin-bottom: 3px; }
+    .chain .step p { font-size: 8.5px; line-height: 1.3; }
+    .chain .arrow { font-size: 11px; }
+    th, td { font-size: 9px; padding: 3px 8px 3px 0; line-height: 1.3; }
+    th { font-size: 7.5px; }
+    .chip { font-size: 7px; padding: 1px 4px; }
+    .metrics { gap: 6px; }
+    .metric { padding: 7px 9px; }
+    .metric .k { font-size: 7px; }
+    .metric .v { font-size: 18px; margin-top: 4px; }
+    .disclosure { font-size: 8.5px; padding: 7px 10px; line-height: 1.4; }
+  }
 </style>
 </head>
 <body>

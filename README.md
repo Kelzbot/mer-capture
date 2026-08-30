@@ -4,7 +4,9 @@
 
 Converts free-text clinical consultation notes into structured, coded documentation with verifiable provenance and automated documentation-quality checks.
 
-**Live:** https://kelzbot.github.io/mer-capture/ · **Pitch deck:** [`pitch/index.html`](pitch/index.html)
+**Live app:** https://kelzbot.github.io/mer-capture/ · **Pitch deck:** https://kelzbot.github.io/mer-capture/pitch/
+
+**PDFs for submission:** [deck](submission/MER-Capture-deck.pdf) · [documentation](submission/MER-Capture-documentation.pdf) — both regenerated from `README.md` and `pitch/index.html`, which remain the source of truth.
 
 ---
 
