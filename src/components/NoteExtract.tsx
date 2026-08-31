@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Download, Loader, ShieldCheck, Sparkles } from 'lucide-react';
 import Capture from './Capture';
 import { FIELD_LABELS, type Profile } from '../lib/aliases';
-import { extractNote, PROVIDER_LABELS, type ExtractionResult, type Provider } from '../lib/extract';
+import { extractNote, PROVIDER_LABELS, type ExtractionResult, type Provider, type SourceKind } from '../lib/extract';
 import { redactionCounts } from '../lib/deidentify';
 import { computeIndicators, type Period } from '../lib/indicators';
 import { runDQ } from '../lib/dq';
@@ -122,6 +122,7 @@ function statusTone(status: string): string {
 
 export default function NoteExtract({ apiKey, provider, period }: Props) {
   const [noteText, setNoteText] = useState(SAMPLE_NOTES[0].text);
+  const [noteKind, setNoteKind] = useState<SourceKind>('note');
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [sourceText, setSourceText] = useState('');
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -155,7 +156,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const extracted = await extractNote(noteText, apiKey, provider);
+      const extracted = await extractNote(noteText, apiKey, provider, undefined, noteKind);
       setResult(extracted);
       setSourceText(noteText);
       setEdits({});
@@ -202,7 +203,10 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
             <select
               onChange={(e) => {
                 const sample = SAMPLE_NOTES[Number(e.target.value)];
-                if (sample) setNoteText(sample.text);
+                if (sample) {
+                  setNoteText(sample.text);
+                  setNoteKind('note');
+                }
               }}
               className="ml-auto rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-700"
               defaultValue="0"
@@ -215,7 +219,13 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
             </select>
           </div>
 
-          <Capture onText={(text) => setNoteText(text)} disabled={busy} />
+          <Capture
+            onText={(text, meta) => {
+              setNoteText(text);
+              setNoteKind(meta.kind);
+            }}
+            disabled={busy}
+          />
 
           <textarea
             value={noteText}

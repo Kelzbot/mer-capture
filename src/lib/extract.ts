@@ -49,7 +49,17 @@ function fieldCatalogue(aliases: Record<string, string[]>): string {
     .join('\n');
 }
 
-export function buildPrompt(redacted: string): string {
+export type SourceKind = 'note' | 'consultation';
+
+const CONSULTATION_RULES = `
+10. CONSULTATION TRANSCRIPT MODE. This input is an automatic transcript of a spoken consultation, not a written note. It contains dialogue between clinician and patient, false starts, repetition, and speech-recognition errors.
+   - Attribute correctly. What the patient describes is history (hpi, pmh) — never examination. What the clinician states aloud as a finding is exam. A patient speculating about their own illness is NOT a diagnosis and must never populate final_diagnosis or differential.
+   - Record only what was actually said. If the clinician never states an assessment or a plan aloud, omit those fields. Do not complete the consultation on their behalf.
+   - source_span must quote the transcript verbatim, including its errors. Do not tidy the quote.
+   - Speech recognition corrupts drug names, doses and numbers badly. If a medication name or a dose is not clearly recoverable from the transcript, OMIT it. Do not repair it to the drug you think was meant, and never guess a dose. A missing dose is safe; a wrong one is not.
+   - Negation survives transcription errors poorly. If you cannot tell whether a symptom was affirmed or denied, omit it rather than choosing.`;
+
+export function buildPrompt(redacted: string, kind: SourceKind = 'note'): string {
   return `You are a clinical data extraction tool for Nigerian HIV programme records. You read one clinic note and return structured JSON.
 
 PROFILES — decide which single profile this note belongs to:
@@ -85,6 +95,7 @@ RULES
    - medications, treatment_plan: only drugs and actions the note records. Never add a standard regimen.
    - soap_note: the note reorganised into S:, O:, A:, P: on four lines, using only content already in the note. Leave a heading empty rather than filling it.
    For every clinical field, source_span must still be a verbatim substring of the note.
+${kind === 'consultation' ? CONSULTATION_RULES : ''}
 
 NOTE:
 """
@@ -211,12 +222,13 @@ export async function extractNote(
   apiKey: string,
   provider: Provider,
   signal?: AbortSignal,
+  kind: SourceKind = 'note',
 ): Promise<ExtractionResult> {
   if (!text.trim()) throw new Error('The note is empty');
   if (!apiKey.trim()) throw new Error('No API key entered');
 
   const { redacted, map, entries } = deidentify(text);
-  const prompt = buildPrompt(redacted);
+  const prompt = buildPrompt(redacted, kind);
 
   const raw =
     provider === 'anthropic'

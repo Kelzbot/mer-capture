@@ -1,33 +1,63 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Camera, CircleX, FileImage, Loader, Mic, Square } from 'lucide-react';
 import {
   isRecordingSupported,
+  LANGUAGES,
   ocrImage,
   transcribeAudio,
   WHISPER_MODELS,
   type CaptureProgress,
-  type WhisperSize,
+  type TranscriptResult,
+  type WhisperChoice,
 } from '../lib/capture';
+import type { SourceKind } from '../lib/extract';
 
 type Props = {
-  onText: (text: string, source: 'photo' | 'voice') => void;
+  onText: (text: string, meta: { source: 'photo' | 'voice'; kind: SourceKind }) => void;
   disabled?: boolean;
 };
 
-type Mode = 'photo' | 'voice';
+type Busy = 'photo' | 'voice' | null;
+
+function clock(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
 export default function Capture({ onText, disabled }: Props) {
-  const [busy, setBusy] = useState<Mode | null>(null);
+  const [busy, setBusy] = useState<Busy>(null);
   const [progress, setProgress] = useState<CaptureProgress | null>(null);
   const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{ text: string; source: Mode } | null>(null);
-  const [size, setSize] = useState<WhisperSize>('base');
+  const [preview, setPreview] = useState<{
+    text: string;
+    source: 'photo' | 'voice';
+    kind: SourceKind;
+    stats?: TranscriptResult;
+  } | null>(null);
+
+  const [kind, setKind] = useState<SourceKind>('consultation');
+  const [choice, setChoice] = useState<WhisperChoice>('small.en');
+  const [language, setLanguage] = useState('auto');
+  const [consented, setConsented] = useState(false);
 
   const recorder = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
+  const kindAtStart = useRef<SourceKind>('consultation');
 
   const canRecord = isRecordingSupported();
+  const model = WHISPER_MODELS[choice];
+  const working = busy !== null;
+
+  useEffect(() => {
+    if (!recording) return;
+    const started = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed((Date.now() - started) / 1000), 500);
+    return () => clearInterval(id);
+  }, [recording]);
 
   async function runOcr(file: File) {
     setError(null);
@@ -36,7 +66,7 @@ export default function Capture({ onText, disabled }: Props) {
     try {
       const text = await ocrImage(file, setProgress);
       if (!text.trim()) throw new Error('No readable text was found in that image');
-      setPreview({ text, source: 'photo' });
+      setPreview({ text, source: 'photo', kind: 'note' });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -59,6 +89,7 @@ export default function Capture({ onText, disabled }: Props) {
   async function startRecording() {
     setError(null);
     setPreview(null);
+    kindAtStart.current = kind;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const rec = new MediaRecorder(stream);
@@ -73,9 +104,16 @@ export default function Capture({ onText, disabled }: Props) {
         const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' });
         setBusy('voice');
         try {
-          const text = await transcribeAudio(blob, setProgress, size);
-          if (!text.trim()) throw new Error('Nothing audible was transcribed from that recording');
-          setPreview({ text, source: 'voice' });
+          const stats = await transcribeAudio(blob, setProgress, choice, language);
+          if (!stats.text.trim()) {
+            throw new Error('Nothing audible was transcribed from that recording');
+          }
+          setPreview({
+            text: stats.text,
+            source: 'voice',
+            kind: kindAtStart.current,
+            stats,
+          });
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
         } finally {
@@ -104,7 +142,7 @@ export default function Capture({ onText, disabled }: Props) {
     setRecording(false);
   }
 
-  const working = busy !== null;
+  const recordBlocked = kind === 'consultation' && !consented;
 
   return (
     <div className="mt-3 rounded border border-slate-300 bg-slate-50 p-3">
@@ -112,6 +150,111 @@ export default function Capture({ onText, disabled }: Props) {
         <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
           Capture instead of typing
         </span>
+
+        {(['consultation', 'note'] as SourceKind[]).map((k) => (
+          <button
+            key={k}
+            type="button"
+            onClick={() => setKind(k)}
+            disabled={working || recording}
+            className={`rounded border px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 ${
+              kind === k
+                ? 'border-teal-500 bg-teal-50 text-teal-800'
+                : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+            }`}
+          >
+            {k === 'consultation' ? 'Live consultation' : 'Dictated note'}
+          </button>
+        ))}
+      </div>
+
+      <p className="mt-2 font-mono text-[10px] leading-4 text-slate-600">
+        {kind === 'consultation'
+          ? 'Records the conversation between clinician and patient. The note is derived from what was actually said — nothing the clinician did not say aloud is filled in.'
+          : 'You dictate a summary yourself. Cleaner input, fewer errors, but it happens after the consultation rather than during it.'}
+      </p>
+
+      {canRecord && (
+        <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+              Speech model
+            </span>
+            <select
+              value={choice}
+              onChange={(e) => setChoice(e.target.value as WhisperChoice)}
+              disabled={working || recording}
+              className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+            >
+              {(Object.keys(WHISPER_MODELS) as WhisperChoice[]).map((key) => (
+                <option key={key} value={key}>
+                  {WHISPER_MODELS[key].label} · {WHISPER_MODELS[key].size}
+                </option>
+              ))}
+            </select>
+
+            {model.multilingual && (
+              <select
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                disabled={working || recording}
+                className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+              >
+                {LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <p className="font-mono text-[10px] text-slate-500">{model.note}</p>
+
+          {kind === 'consultation' && (
+            <label className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2">
+              <input
+                type="checkbox"
+                checked={consented}
+                onChange={(e) => setConsented(e.target.checked)}
+                disabled={recording}
+                className="mt-0.5"
+              />
+              <span className="font-mono text-[10px] leading-4 text-amber-900">
+                The patient has been told this consultation will be recorded and has agreed.
+                Recording without consent is not lawful under the Nigeria Data Protection Act.
+              </span>
+            </label>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3">
+        {canRecord &&
+          (recording ? (
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="flex items-center gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+            >
+              <Square size={13} />
+              Stop and transcribe
+              <span className="font-mono tabular-nums">{clock(elapsed)}</span>
+              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-rose-600" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={working || disabled || recordBlocked}
+              className="flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+            >
+              <Mic size={13} />
+              {kind === 'consultation' ? 'Record consultation' : 'Dictate note'}
+            </button>
+          ))}
+
+        <span className="mx-1 font-mono text-[10px] text-slate-400">or</span>
 
         <label
           className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
@@ -160,59 +303,18 @@ export default function Capture({ onText, disabled }: Props) {
         >
           try a sample form
         </button>
-
-        {canRecord &&
-          (recording ? (
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="flex items-center gap-1.5 rounded border border-rose-300 bg-rose-50 px-2.5 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
-            >
-              <Square size={13} />
-              Stop and transcribe
-              <span className="ml-1 inline-block h-2 w-2 animate-pulse rounded-full bg-rose-600" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={startRecording}
-              disabled={working || disabled}
-              className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 disabled:opacity-40"
-            >
-              <Mic size={13} />
-              Dictate note
-            </button>
-          ))}
       </div>
 
-      {canRecord && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-            Speech model
-          </span>
-          {(Object.keys(WHISPER_MODELS) as WhisperSize[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSize(key)}
-              disabled={working || recording}
-              className={`rounded border px-2 py-1 font-mono text-[10px] disabled:opacity-40 ${
-                size === key
-                  ? 'border-teal-500 bg-teal-50 text-teal-800'
-                  : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
-              }`}
-            >
-              {WHISPER_MODELS[key].label}
-            </button>
-          ))}
-          <span className="font-mono text-[10px] text-slate-500">{WHISPER_MODELS[size].note}</span>
-        </div>
+      {recordBlocked && !recording && (
+        <p className="mt-2 font-mono text-[10px] text-amber-700">
+          Confirm consent above before recording a consultation.
+        </p>
       )}
 
       <p className="mt-2 font-mono text-[10px] leading-4 text-slate-500">
-        Both run inside this browser. The photo and the audio never leave the device — only the
-        recogniser files are downloaded, once. Handwriting is unreliable; printed and typed forms
-        read best.
+        Everything here runs inside this browser. The audio and the photo never leave the device —
+        only the recogniser files are downloaded, once, and cached. Handwriting is unreliable;
+        printed forms read best.
       </p>
 
       {working && (
@@ -238,24 +340,40 @@ export default function Capture({ onText, disabled }: Props) {
       {preview && (
         <div className="mt-3 rounded border border-teal-300 bg-white p-3">
           <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-            {preview.source === 'photo' ? 'Read from the image' : 'Transcribed from the recording'}
+            {preview.source === 'photo'
+              ? 'Read from the image'
+              : preview.kind === 'consultation'
+                ? 'Consultation transcript'
+                : 'Dictation transcript'}
             <span className="ml-2 normal-case tracking-normal text-slate-400">
-              check it against the original before extracting
+              check it before extracting — recognition errors are expected
             </span>
           </p>
+
+          {preview.stats && (
+            <p className="mt-1 font-mono text-[10px] text-slate-500">
+              {Math.round(preview.stats.audioSeconds)}s of audio in{' '}
+              {Math.round(preview.stats.elapsedSeconds)}s on the{' '}
+              {preview.stats.device === 'webgpu' ? 'GPU' : 'CPU'} —{' '}
+              {(preview.stats.elapsedSeconds / Math.max(1, preview.stats.audioSeconds)).toFixed(1)}×
+              realtime
+            </p>
+          )}
+
           <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
             {preview.text}
           </pre>
+
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
-                onText(preview.text, preview.source);
+                onText(preview.text, { source: preview.source, kind: preview.kind });
                 setPreview(null);
               }}
               className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"
             >
-              Replace the note with this
+              Use this
             </button>
             <button
               type="button"
