@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, Download, Loader, ShieldCheck, Sparkles } from 'lucide-react';
+import Capture from './Capture';
 import { FIELD_LABELS, type Profile } from '../lib/aliases';
 import { extractNote, PROVIDER_LABELS, type ExtractionResult, type Provider } from '../lib/extract';
 import { redactionCounts } from '../lib/deidentify';
@@ -213,6 +214,8 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
               ))}
             </select>
           </div>
+
+          <Capture onText={(text) => setNoteText(text)} disabled={busy} />
 
           <textarea
             value={noteText}

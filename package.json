@@ -11,10 +11,12 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
+    "@huggingface/transformers": "^4.2.0",
     "lucide-react": "^1.37.0",
     "papaparse": "^5.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
