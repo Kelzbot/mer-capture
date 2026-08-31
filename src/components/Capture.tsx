@@ -10,6 +10,14 @@ import {
   type TranscriptResult,
   type WhisperChoice,
 } from '../lib/capture';
+import {
+  countSpeakers,
+  diariseAudio,
+  labelChunks,
+  renderTranscript,
+  type LabelledLine,
+  type Role,
+} from '../lib/diarise';
 import type { SourceKind } from '../lib/extract';
 
 type Props = {
@@ -36,7 +44,9 @@ export default function Capture({ onText, disabled }: Props) {
     source: 'photo' | 'voice';
     kind: SourceKind;
     stats?: TranscriptResult;
+    lines?: LabelledLine[];
   } | null>(null);
+  const [roles, setRoles] = useState<Record<number, Role>>({ 0: 'clinician', 1: 'patient' });
 
   const [kind, setKind] = useState<SourceKind>('consultation');
   const [choice, setChoice] = useState<WhisperChoice>('small.en');
@@ -108,11 +118,27 @@ export default function Capture({ onText, disabled }: Props) {
           if (!stats.text.trim()) {
             throw new Error('Nothing audible was transcribed from that recording');
           }
+
+          let lines: LabelledLine[] | undefined;
+          if (kindAtStart.current === 'consultation' && stats.chunks.length > 0) {
+            try {
+              const turns = await diariseAudio(stats.audio, setProgress);
+              if (countSpeakers(turns) > 1) {
+                const labelled = labelChunks(stats.chunks, turns);
+                if (labelled.length > 0) lines = labelled;
+              }
+            } catch (e) {
+              // Diarisation is an enhancement: a failure must not lose the transcript.
+              console.warn('Diarisation failed, keeping the plain transcript', e);
+            }
+          }
+
           setPreview({
             text: stats.text,
             source: 'voice',
             kind: kindAtStart.current,
             stats,
+            lines,
           });
         } catch (e) {
           setError(e instanceof Error ? e.message : String(e));
@@ -348,6 +374,11 @@ export default function Capture({ onText, disabled }: Props) {
             <span className="ml-2 normal-case tracking-normal text-slate-400">
               check it before extracting — recognition errors are expected
             </span>
+            {preview.kind === 'consultation' && preview.source === 'voice' && !preview.lines && (
+              <span className="ml-2 normal-case tracking-normal text-amber-700">
+                only one voice was distinguishable — speakers are not separated
+              </span>
+            )}
           </p>
 
           {preview.stats && (
@@ -360,15 +391,68 @@ export default function Capture({ onText, disabled }: Props) {
             </p>
           )}
 
-          <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
-            {preview.text}
-          </pre>
+          {preview.lines ? (
+            <>
+              <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                  Two voices found — which one is the clinician?
+                </span>
+                <span className="w-full font-mono text-[10px] text-amber-700">
+                  Speaker separation is provisional and not yet validated on real consultations.
+                  Read the lines below before using them.
+                </span>
+                {[0, 1].map((speaker) => (
+                  <button
+                    key={speaker}
+                    type="button"
+                    onClick={() =>
+                      setRoles({
+                        [speaker]: 'clinician',
+                        [speaker === 0 ? 1 : 0]: 'patient',
+                      })
+                    }
+                    className={`rounded border px-2 py-1 font-mono text-[10px] ${
+                      roles[speaker] === 'clinician'
+                        ? 'border-teal-500 bg-teal-50 text-teal-800'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                    }`}
+                  >
+                    Voice {speaker + 1} {roles[speaker] === 'clinician' ? 'is the clinician' : ''}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-2 max-h-52 space-y-1.5 overflow-y-auto">
+                {preview.lines.map((line, i) => (
+                  <div key={`${line.start}-${i}`} className="flex gap-2">
+                    <span
+                      className={`w-20 shrink-0 font-mono text-[9px] uppercase tracking-wide ${
+                        roles[line.speaker] === 'clinician' ? 'text-teal-700' : 'text-slate-500'
+                      }`}
+                    >
+                      {roles[line.speaker] ?? 'clinician'}
+                    </span>
+                    <span className="font-mono text-[11px] leading-4 text-slate-800">
+                      {line.text}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
+              {preview.text}
+            </pre>
+          )}
 
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
-                onText(preview.text, { source: preview.source, kind: preview.kind });
+                const text = preview.lines
+                  ? renderTranscript(preview.lines, roles)
+                  : preview.text;
+                onText(text, { source: preview.source, kind: preview.kind });
                 setPreview(null);
               }}
               className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"

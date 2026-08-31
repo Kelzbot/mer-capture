@@ -53,6 +53,8 @@ export const LANGUAGES: Array<{ code: string; label: string }> = [
 
 export type TranscriptResult = {
   text: string;
+  chunks: Array<{ text: string; timestamp: [number, number | null] }>;
+  audio: Float32Array;
   device: 'webgpu' | 'wasm';
   audioSeconds: number;
   elapsedSeconds: number;
@@ -94,10 +96,15 @@ export async function ocrImage(file: Blob, onProgress: ProgressFn): Promise<stri
   }
 }
 
+type AsrOutput = {
+  text?: string;
+  chunks?: Array<{ text?: string; timestamp?: [number, number | null] }>;
+};
+
 type AsrPipeline = (
   audio: Float32Array,
   options: Record<string, unknown>,
-) => Promise<{ text?: string } | Array<{ text?: string }>>;
+) => Promise<AsrOutput | AsrOutput[]>;
 
 type Loaded = { asr: AsrPipeline; device: 'webgpu' | 'wasm' };
 
@@ -113,7 +120,7 @@ export async function hasWebGpu(): Promise<boolean> {
   }
 }
 
-async function decodeToMono16k(blob: Blob): Promise<Float32Array> {
+export async function decodeToMono16k(blob: Blob): Promise<Float32Array> {
   const bytes = await blob.arrayBuffer();
   const Ctor: typeof AudioContext =
     window.AudioContext ??
@@ -192,7 +199,11 @@ export async function transcribeAudio(
     pct: null,
   });
 
-  const options: Record<string, unknown> = { chunk_length_s: 30, stride_length_s: 5 };
+  const options: Record<string, unknown> = {
+    chunk_length_s: 30,
+    stride_length_s: 5,
+    return_timestamps: true,
+  };
   if (WHISPER_MODELS[choice].multilingual) {
     options.task = 'transcribe';
     if (language !== 'auto') options.language = language;
@@ -200,10 +211,23 @@ export async function transcribeAudio(
 
   const started = Date.now();
   const output = await asr(audio, options);
-  const text = Array.isArray(output) ? output.map((o) => o.text ?? '').join(' ') : output.text ?? '';
+  const first = Array.isArray(output) ? output[0] ?? {} : output;
+
+  const chunks = (first.chunks ?? [])
+    .map((c) => ({
+      text: (c.text ?? '').trim(),
+      timestamp: [c.timestamp?.[0] ?? 0, c.timestamp?.[1] ?? null] as [number, number | null],
+    }))
+    .filter((c) => c.text.length > 0);
+
+  const text = Array.isArray(output)
+    ? output.map((o) => o.text ?? '').join(' ')
+    : output.text ?? '';
 
   return {
     text: text.trim(),
+    chunks,
+    audio,
     device,
     audioSeconds,
     elapsedSeconds: (Date.now() - started) / 1000,
