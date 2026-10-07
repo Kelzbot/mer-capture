@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Camera, CircleX, FileImage, Loader, Mic, Square } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Camera, CircleX, Download, FileAudio, FileImage, Loader, Mic, Square } from 'lucide-react';
 import {
   isRecordingSupported,
   LANGUAGES,
@@ -19,6 +19,13 @@ import {
   type Role,
 } from '../lib/diarise';
 import type { SourceKind } from '../lib/extract';
+import { useAudioRecorder, type RecordedAudio } from '../lib/useAudioRecorder';
+import {
+  audioDebugEnabled,
+  extensionForMime,
+  RECORDING_LIMIT_SECONDS,
+  RECORDING_WARN_SECONDS,
+} from '../config/audioCapture';
 
 type Props = {
   onText: (text: string, meta: { source: 'photo' | 'voice'; kind: SourceKind }) => void;
@@ -27,17 +34,30 @@ type Props = {
 
 type Busy = 'photo' | 'voice' | null;
 
+type AudioClip = {
+  blob: Blob;
+  url: string;
+  mime: string;
+  origin: 'recording' | 'upload';
+  raw: boolean;
+  fileName: string;
+};
+
 function clock(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function stamp(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
 export default function Capture({ onText, disabled }: Props) {
   const [busy, setBusy] = useState<Busy>(null);
   const [progress, setProgress] = useState<CaptureProgress | null>(null);
-  const [recording, setRecording] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<{
     text: string;
@@ -52,22 +72,85 @@ export default function Capture({ onText, disabled }: Props) {
   const [choice, setChoice] = useState<WhisperChoice>('small.en');
   const [language, setLanguage] = useState('auto');
   const [consented, setConsented] = useState(false);
-
-  const recorder = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
-  const kindAtStart = useRef<SourceKind>('consultation');
+  const [raw, setRaw] = useState(false);
+  const [clip, setClip] = useState<AudioClip | null>(null);
 
   const canRecord = isRecordingSupported();
+  const showAudioDebug = audioDebugEnabled();
   const model = WHISPER_MODELS[choice];
-  const working = busy !== null;
 
-  useEffect(() => {
-    if (!recording) return;
-    const started = Date.now();
-    setElapsed(0);
-    const id = setInterval(() => setElapsed((Date.now() - started) / 1000), 500);
-    return () => clearInterval(id);
-  }, [recording]);
+  useEffect(() => () => {
+    if (clip) URL.revokeObjectURL(clip.url);
+  }, [clip]);
+
+  const processAudio = useCallback(
+    async (blob: Blob, forKind: SourceKind) => {
+      setError(null);
+      setPreview(null);
+      setBusy('voice');
+      try {
+        const stats = await transcribeAudio(blob, setProgress, choice, language);
+        if (!stats.text.trim()) {
+          throw new Error('Nothing audible was transcribed from that recording');
+        }
+
+        let lines: LabelledLine[] | undefined;
+        if (forKind === 'consultation' && stats.chunks.length > 0) {
+          try {
+            const turns = await diariseAudio(stats.audio, setProgress);
+            if (countSpeakers(turns) > 1) {
+              const labelled = labelChunks(stats.chunks, turns);
+              if (labelled.length > 0) lines = labelled;
+            }
+          } catch (e) {
+            // Diarisation is an enhancement: a failure must not lose the transcript.
+            console.warn('Diarisation failed, keeping the plain transcript', e);
+          }
+        }
+
+        setPreview({ text: stats.text, source: 'voice', kind: forKind, stats, lines });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setBusy(null);
+        setProgress(null);
+      }
+    },
+    [choice, language],
+  );
+
+  // The effect above revokes the outgoing clip's object URL when this replaces it.
+  const keepClip = useCallback((next: AudioClip) => setClip(next), []);
+
+  const onRecorded = useCallback(
+    (audio: RecordedAudio) => {
+      const ext = extensionForMime(audio.mime);
+      keepClip({
+        blob: audio.blob,
+        url: URL.createObjectURL(audio.blob),
+        mime: audio.mime,
+        origin: 'recording',
+        raw: audio.raw,
+        fileName: `encounter-${stamp()}-${audio.raw ? 'raw' : 'processed'}.${ext}`,
+      });
+      void processAudio(audio.blob, kind);
+    },
+    [keepClip, processAudio, kind],
+  );
+
+  const recorder = useAudioRecorder(onRecorded);
+
+  function onAudioFile(file: File) {
+    keepClip({
+      blob: file,
+      url: URL.createObjectURL(file),
+      mime: file.type || 'audio/*',
+      origin: 'upload',
+      raw: false,
+      fileName: file.name,
+    });
+    void processAudio(file, kind);
+  }
 
   async function runOcr(file: File) {
     setError(null);
@@ -96,79 +179,11 @@ export default function Capture({ onText, disabled }: Props) {
     }
   }
 
-  async function startRecording() {
-    setError(null);
-    setPreview(null);
-    kindAtStart.current = kind;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const rec = new MediaRecorder(stream);
-      chunks.current = [];
-
-      rec.ondataavailable = (e) => {
-        if (e.data.size > 0) chunks.current.push(e.data);
-      };
-
-      rec.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        const blob = new Blob(chunks.current, { type: rec.mimeType || 'audio/webm' });
-        setBusy('voice');
-        try {
-          const stats = await transcribeAudio(blob, setProgress, choice, language);
-          if (!stats.text.trim()) {
-            throw new Error('Nothing audible was transcribed from that recording');
-          }
-
-          let lines: LabelledLine[] | undefined;
-          if (kindAtStart.current === 'consultation' && stats.chunks.length > 0) {
-            try {
-              const turns = await diariseAudio(stats.audio, setProgress);
-              if (countSpeakers(turns) > 1) {
-                const labelled = labelChunks(stats.chunks, turns);
-                if (labelled.length > 0) lines = labelled;
-              }
-            } catch (e) {
-              // Diarisation is an enhancement: a failure must not lose the transcript.
-              console.warn('Diarisation failed, keeping the plain transcript', e);
-            }
-          }
-
-          setPreview({
-            text: stats.text,
-            source: 'voice',
-            kind: kindAtStart.current,
-            stats,
-            lines,
-          });
-        } catch (e) {
-          setError(e instanceof Error ? e.message : String(e));
-        } finally {
-          setBusy(null);
-          setProgress(null);
-        }
-      };
-
-      rec.start();
-      recorder.current = rec;
-      setRecording(true);
-    } catch (e) {
-      setError(
-        e instanceof Error && e.name === 'NotAllowedError'
-          ? 'Microphone access was refused by the browser'
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
-    }
-  }
-
-  function stopRecording() {
-    recorder.current?.stop();
-    recorder.current = null;
-    setRecording(false);
-  }
-
+  const recording = recorder.recording;
+  const working = busy !== null;
   const recordBlocked = kind === 'consultation' && !consented;
+  const nearLimit = recording && recorder.elapsed >= RECORDING_WARN_SECONDS;
+  const shownError = error ?? recorder.error;
 
   return (
     <div className="mt-3 rounded border border-slate-300 bg-slate-50 p-3">
@@ -237,6 +252,19 @@ export default function Capture({ onText, disabled }: Props) {
 
           <p className="font-mono text-[10px] text-slate-500">{model.note}</p>
 
+          {showAudioDebug && (
+            <label className="flex items-center gap-2 font-mono text-[10px] text-slate-600">
+              <input
+                type="checkbox"
+                checked={raw}
+                onChange={(e) => setRaw(e.target.checked)}
+                disabled={recording}
+              />
+              Raw audio — echo cancellation, noise suppression and gain control all off
+              <span className="text-slate-400">(audio debug)</span>
+            </label>
+          )}
+
           {kind === 'consultation' && (
             <label className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2">
               <input
@@ -260,18 +288,20 @@ export default function Capture({ onText, disabled }: Props) {
           (recording ? (
             <button
               type="button"
-              onClick={stopRecording}
+              onClick={recorder.stop}
               className="flex items-center gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
             >
               <Square size={13} />
               Stop and transcribe
-              <span className="font-mono tabular-nums">{clock(elapsed)}</span>
+              <span className="font-mono tabular-nums">
+                {clock(recorder.elapsed)} / {clock(RECORDING_LIMIT_SECONDS)}
+              </span>
               <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-rose-600" />
             </button>
           ) : (
             <button
               type="button"
-              onClick={startRecording}
+              onClick={() => void recorder.start(raw)}
               disabled={working || disabled || recordBlocked}
               className="flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
@@ -279,6 +309,25 @@ export default function Capture({ onText, disabled }: Props) {
               {kind === 'consultation' ? 'Record consultation' : 'Dictate note'}
             </button>
           ))}
+
+        <label
+          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
+            working || disabled || recording || recordBlocked ? 'pointer-events-none opacity-40' : ''
+          }`}
+        >
+          <FileAudio size={13} />
+          Upload audio file
+          <input
+            type="file"
+            accept="audio/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = '';
+              if (f) onAudioFile(f);
+            }}
+          />
+        </label>
 
         <span className="mx-1 font-mono text-[10px] text-slate-400">or</span>
 
@@ -331,9 +380,19 @@ export default function Capture({ onText, disabled }: Props) {
         </button>
       </div>
 
+      {recording && (
+        <p className={`mt-2 font-mono text-[10px] ${nearLimit ? 'text-rose-700' : 'text-slate-500'}`}>
+          {nearLimit
+            ? `Recording stops automatically at ${clock(RECORDING_LIMIT_SECONDS)}.`
+            : recorder.wakeLockHeld
+              ? 'Screen kept awake while recording.'
+              : 'This browser would not keep the screen awake — keep the device unlocked while recording.'}
+        </p>
+      )}
+
       {recordBlocked && !recording && (
         <p className="mt-2 font-mono text-[10px] text-amber-700">
-          Confirm consent above before recording a consultation.
+          Confirm consent above before recording or uploading a consultation.
         </p>
       )}
 
@@ -342,6 +401,29 @@ export default function Capture({ onText, disabled }: Props) {
         only the recogniser files are downloaded, once, and cached. Handwriting is unreliable;
         printed forms read best.
       </p>
+
+      {clip && !recording && (
+        <div className="mt-3 rounded border border-slate-200 bg-white px-3 py-2">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+            {clip.origin === 'recording' ? 'Recorded audio' : 'Uploaded audio'}
+            <span className="ml-2 normal-case tracking-normal text-slate-400">
+              {(clip.blob.size / 1024 / 1024).toFixed(1)} MB · {clip.mime}
+              {clip.origin === 'recording' && ` · ${clip.raw ? 'raw' : 'processed'}`}
+            </span>
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <audio controls src={clip.url} className="h-8 max-w-full" />
+            <a
+              href={clip.url}
+              download={clip.fileName}
+              className="flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700"
+            >
+              <Download size={13} />
+              Download audio
+            </a>
+          </div>
+        </div>
+      )}
 
       {working && (
         <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-700">
@@ -356,10 +438,10 @@ export default function Capture({ onText, disabled }: Props) {
         </div>
       )}
 
-      {error && (
+      {shownError && (
         <p className="mt-3 flex items-start gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-2 font-mono text-[11px] text-rose-700">
           <CircleX size={13} className="mt-0.5 shrink-0" />
-          {error}
+          {shownError}
         </p>
       )}
 
