@@ -126,16 +126,17 @@ async function signUpload(path: string): Promise<string> {
       body: '{}',
     });
 
+  // A missing bucket is reported in more than one wording ("Bucket not found",
+  // "The related resource does not exist"), so don't match on the text: on any
+  // refusal, make sure the bucket exists (a no-op if it does) and try once more.
   let res = await attempt();
   if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    if (!/bucket not found/i.test(detail)) {
-      throw new Error(`Storage refused the upload URL (${res.status}): ${detail.slice(0, 200)}`);
-    }
+    await res.body?.cancel();
     await ensureBucket();
     res = await attempt();
     if (!res.ok) {
-      throw new Error(`Storage refused the upload URL (${res.status})`);
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Storage refused the upload URL (${res.status}): ${detail.slice(0, 200)}`);
     }
   }
 
