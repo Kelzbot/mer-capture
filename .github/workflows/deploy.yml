@@ -25,6 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Public function URL, not a secret. Set it as a repository variable.
+          VITE_TRANSCRIBE_URL: ${{ vars.VITE_TRANSCRIBE_URL }}
       - name: Publish the pitch deck alongside the app
         run: cp -r pitch dist/pitch
       - name: Publish the submission PDFs

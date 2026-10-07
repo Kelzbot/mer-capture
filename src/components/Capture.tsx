@@ -1,23 +1,24 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Camera, CircleX, Download, FileAudio, FileImage, Loader, Mic, Square } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  Camera,
+  CircleX,
+  Download,
+  FileAudio,
+  FileImage,
+  Loader,
+  Mic,
+  RotateCw,
+  Square,
+  TriangleAlert,
+} from 'lucide-react';
 import {
   isRecordingSupported,
   LANGUAGES,
   ocrImage,
-  transcribeAudio,
   WHISPER_MODELS,
   type CaptureProgress,
-  type TranscriptResult,
   type WhisperChoice,
 } from '../lib/capture';
-import {
-  countSpeakers,
-  diariseAudio,
-  labelChunks,
-  renderTranscript,
-  type LabelledLine,
-  type Role,
-} from '../lib/diarise';
 import type { SourceKind } from '../lib/extract';
 import { useAudioRecorder, type RecordedAudio } from '../lib/useAudioRecorder';
 import {
@@ -26,13 +27,35 @@ import {
   RECORDING_LIMIT_SECONDS,
   RECORDING_WARN_SECONDS,
 } from '../config/audioCapture';
+import { MEDICAL_KEYTERMS } from '../config/medicalKeyterms';
+import { AssemblyAIProvider } from '../lib/transcription/assemblyai';
+import { OfflineProvider } from '../lib/transcription/offline';
+import { startWithFallback } from '../lib/transcription/run';
+import { readDemoKey, writeDemoKey } from '../lib/transcription/demoKey';
+import {
+  mergeTurns,
+  ROLE_LABELS,
+  SPEAKER_ROLES,
+  speakerLabel,
+  speakersIn,
+  utterancesToTranscript,
+  type SpeakerRole,
+  type SpeakerRoles,
+} from '../lib/transcription/format';
+import {
+  PasscodeError,
+  TranscriptionTimeoutError,
+  type ProviderId,
+  type StatusFn,
+  type TranscriptionJob,
+  type TranscriptionProvider,
+  type TranscriptionResult,
+} from '../lib/transcription/types';
 
 type Props = {
   onText: (text: string, meta: { source: 'photo' | 'voice'; kind: SourceKind }) => void;
   disabled?: boolean;
 };
-
-type Busy = 'photo' | 'voice' | null;
 
 type AudioClip = {
   blob: Blob;
@@ -42,6 +65,10 @@ type AudioClip = {
   raw: boolean;
   fileName: string;
 };
+
+type Pending = { job: TranscriptionJob; provider: TranscriptionProvider; kind: SourceKind };
+
+const CLOUD_URL = ((import.meta.env.VITE_TRANSCRIBE_URL as string | undefined) ?? '').trim();
 
 function clock(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -55,77 +82,147 @@ function stamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
+function isAbort(e: unknown): boolean {
+  return e instanceof DOMException && e.name === 'AbortError';
+}
+
 export default function Capture({ onText, disabled }: Props) {
-  const [busy, setBusy] = useState<Busy>(null);
-  const [progress, setProgress] = useState<CaptureProgress | null>(null);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState<CaptureProgress | null>(null);
+  const [photoText, setPhotoText] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<{
-    text: string;
-    source: 'photo' | 'voice';
-    kind: SourceKind;
-    stats?: TranscriptResult;
-    lines?: LabelledLine[];
-  } | null>(null);
-  const [roles, setRoles] = useState<Record<number, Role>>({ 0: 'clinician', 1: 'patient' });
 
   const [kind, setKind] = useState<SourceKind>('consultation');
+  const [engine, setEngine] = useState<ProviderId>(CLOUD_URL ? 'assemblyai' : 'offline');
   const [choice, setChoice] = useState<WhisperChoice>('small.en');
   const [language, setLanguage] = useState('auto');
   const [consented, setConsented] = useState(false);
   const [raw, setRaw] = useState(false);
   const [clip, setClip] = useState<AudioClip | null>(null);
 
+  const [demoKey, setDemoKey] = useState(readDemoKey);
+  const [keyDraft, setKeyDraft] = useState('');
+  const [editingKey, setEditingKey] = useState(false);
+
+  const [transcribing, setTranscribing] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
+  const [startedAt, setStartedAt] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
+  const [pending, setPending] = useState<Pending | null>(null);
+  const [timedOut, setTimedOut] = useState(false);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+  const [voice, setVoice] = useState<{
+    result: TranscriptionResult;
+    kind: SourceKind;
+    onDevice: boolean;
+  } | null>(null);
+  const [roles, setRoles] = useState<SpeakerRoles>({});
+
+  const abortRef = useRef<AbortController | null>(null);
+
   const canRecord = isRecordingSupported();
   const showAudioDebug = audioDebugEnabled();
   const model = WHISPER_MODELS[choice];
+  const cloudSelected = engine === 'assemblyai';
 
   useEffect(() => () => {
     if (clip) URL.revokeObjectURL(clip.url);
   }, [clip]);
 
-  const processAudio = useCallback(
-    async (blob: Blob, forKind: SourceKind) => {
-      setError(null);
-      setPreview(null);
-      setBusy('voice');
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  useEffect(() => {
+    if (!transcribing) return;
+    const id = setInterval(() => setElapsed((Date.now() - startedAt) / 1000), 500);
+    return () => clearInterval(id);
+  }, [transcribing, startedAt]);
+
+  const onStatus: StatusFn = useCallback((s) => setStage(s), []);
+
+  const finishWith = useCallback(
+    async (next: Pending) => {
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setPending(next);
+      setTimedOut(false);
+      setTranscribing(true);
+      setStartedAt(Date.now());
+      setElapsed(0);
+
       try {
-        const stats = await transcribeAudio(blob, setProgress, choice, language);
-        if (!stats.text.trim()) {
-          throw new Error('Nothing audible was transcribed from that recording');
-        }
-
-        let lines: LabelledLine[] | undefined;
-        if (forKind === 'consultation' && stats.chunks.length > 0) {
-          try {
-            const turns = await diariseAudio(stats.audio, setProgress);
-            if (countSpeakers(turns) > 1) {
-              const labelled = labelChunks(stats.chunks, turns);
-              if (labelled.length > 0) lines = labelled;
-            }
-          } catch (e) {
-            // Diarisation is an enhancement: a failure must not lose the transcript.
-            console.warn('Diarisation failed, keeping the plain transcript', e);
-          }
-        }
-
-        setPreview({ text: stats.text, source: 'voice', kind: forKind, stats, lines });
+        const result = await next.provider.wait(next.job, onStatus, controller.signal);
+        setVoice({ result, kind: next.kind, onDevice: next.provider.onDevice });
+        setRoles({});
+        setPending(null);
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        if (isAbort(e)) return;
+        if (e instanceof TranscriptionTimeoutError) {
+          setTimedOut(true);
+        } else {
+          if (e instanceof PasscodeError) setEditingKey(true);
+          setError(e instanceof Error ? e.message : String(e));
+          setPending(null);
+        }
       } finally {
-        setBusy(null);
-        setProgress(null);
+        if (abortRef.current === controller) {
+          setTranscribing(false);
+          setStage(null);
+        }
       }
     },
-    [choice, language],
+    [onStatus],
   );
 
-  // The effect above revokes the outgoing clip's object URL when this replaces it.
-  const keepClip = useCallback((next: AudioClip) => setClip(next), []);
+  const processAudio = useCallback(
+    async (blob: Blob, forKind: SourceKind) => {
+      abortRef.current?.abort();
+      setError(null);
+      setVoice(null);
+      setPhotoText(null);
+      setFallbackNotice(null);
+      setTimedOut(false);
+      setPending(null);
+      setTranscribing(true);
+      setStartedAt(Date.now());
+      setElapsed(0);
+      setStage(null);
+
+      const mode = forKind === 'note' ? 'dictation' : 'consultation';
+      const offline = new OfflineProvider({ choice, language });
+      const cloud = new AssemblyAIProvider({
+        url: CLOUD_URL,
+        getDemoKey: readDemoKey,
+        keyterms: MEDICAL_KEYTERMS,
+      });
+      const primary = engine === 'assemblyai' ? cloud : offline;
+
+      try {
+        const started = await startWithFallback(
+          primary,
+          primary === cloud ? offline : null,
+          blob,
+          mode,
+          onStatus,
+        );
+        if (started.fallbackReason) setFallbackNotice(started.fallbackReason);
+        await finishWith({ job: started.job, provider: started.provider, kind: forKind });
+      } catch (e) {
+        if (isAbort(e)) return;
+        if (e instanceof PasscodeError) setEditingKey(true);
+        setError(e instanceof Error ? e.message : String(e));
+        setTranscribing(false);
+        setStage(null);
+      }
+    },
+    [choice, language, engine, onStatus, finishWith],
+  );
 
   const onRecorded = useCallback(
     (audio: RecordedAudio) => {
       const ext = extensionForMime(audio.mime);
-      keepClip({
+      setClip({
         blob: audio.blob,
         url: URL.createObjectURL(audio.blob),
         mime: audio.mime,
@@ -135,13 +232,13 @@ export default function Capture({ onText, disabled }: Props) {
       });
       void processAudio(audio.blob, kind);
     },
-    [keepClip, processAudio, kind],
+    [processAudio, kind],
   );
 
   const recorder = useAudioRecorder(onRecorded);
 
   function onAudioFile(file: File) {
-    keepClip({
+    setClip({
       blob: file,
       url: URL.createObjectURL(file),
       mime: file.type || 'audio/*',
@@ -152,19 +249,33 @@ export default function Capture({ onText, disabled }: Props) {
     void processAudio(file, kind);
   }
 
+  function saveKey() {
+    const value = keyDraft.trim();
+    writeDemoKey(value);
+    setDemoKey(value);
+    setKeyDraft('');
+    setEditingKey(false);
+    setError(null);
+  }
+
+  function toggleRole(speaker: string, role: SpeakerRole) {
+    setRoles((current) => ({ ...current, [speaker]: current[speaker] === role ? undefined : role }));
+  }
+
   async function runOcr(file: File) {
     setError(null);
-    setPreview(null);
-    setBusy('photo');
+    setPhotoText(null);
+    setVoice(null);
+    setOcrBusy(true);
     try {
-      const text = await ocrImage(file, setProgress);
+      const text = await ocrImage(file, setOcrProgress);
       if (!text.trim()) throw new Error('No readable text was found in that image');
-      setPreview({ text, source: 'photo', kind: 'note' });
+      setPhotoText(text);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(null);
-      setProgress(null);
+      setOcrBusy(false);
+      setOcrProgress(null);
     }
   }
 
@@ -180,10 +291,13 @@ export default function Capture({ onText, disabled }: Props) {
   }
 
   const recording = recorder.recording;
-  const working = busy !== null;
+  const working = ocrBusy || transcribing;
   const recordBlocked = kind === 'consultation' && !consented;
+  const needsKey = cloudSelected && !demoKey;
   const nearLimit = recording && recorder.elapsed >= RECORDING_WARN_SECONDS;
   const shownError = error ?? recorder.error;
+  const speakers = voice ? speakersIn(voice.result.utterances) : [];
+  const turns = voice ? mergeTurns(voice.result.utterances) : [];
 
   return (
     <div className="mt-3 rounded border border-slate-300 bg-slate-50 p-3">
@@ -219,38 +333,92 @@ export default function Capture({ onText, disabled }: Props) {
         <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-              Speech model
+              Transcription
             </span>
             <select
-              value={choice}
-              onChange={(e) => setChoice(e.target.value as WhisperChoice)}
+              value={engine}
+              onChange={(e) => setEngine(e.target.value as ProviderId)}
               disabled={working || recording}
               className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
             >
-              {(Object.keys(WHISPER_MODELS) as WhisperChoice[]).map((key) => (
-                <option key={key} value={key}>
-                  {WHISPER_MODELS[key].label} · {WHISPER_MODELS[key].size}
-                </option>
-              ))}
+              <option value="assemblyai">
+                Cloud — medical{CLOUD_URL ? '' : ' (not configured in this build)'}
+              </option>
+              <option value="offline">Offline (basic) — on this device</option>
             </select>
 
-            {model.multilingual && (
-              <select
-                value={language}
-                onChange={(e) => setLanguage(e.target.value)}
-                disabled={working || recording}
-                className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
-              >
-                {LANGUAGES.map((l) => (
-                  <option key={l.code} value={l.code}>
-                    {l.label}
-                  </option>
-                ))}
-              </select>
+            {!cloudSelected && (
+              <>
+                <select
+                  value={choice}
+                  onChange={(e) => setChoice(e.target.value as WhisperChoice)}
+                  disabled={working || recording}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+                >
+                  {(Object.keys(WHISPER_MODELS) as WhisperChoice[]).map((key) => (
+                    <option key={key} value={key}>
+                      {WHISPER_MODELS[key].label} · {WHISPER_MODELS[key].size}
+                    </option>
+                  ))}
+                </select>
+                {model.multilingual && (
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    disabled={working || recording}
+                    className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+                  >
+                    {LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </>
             )}
           </div>
 
-          <p className="font-mono text-[10px] text-slate-500">{model.note}</p>
+          {cloudSelected ? (
+            demoKey && !editingKey ? (
+              <p className="font-mono text-[10px] text-slate-500">
+                Speaker labels and medical vocabulary. Passcode saved on this device ·{' '}
+                <button
+                  type="button"
+                  onClick={() => setEditingKey(true)}
+                  className="text-teal-700 underline"
+                >
+                  change
+                </button>
+              </p>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  type="password"
+                  value={keyDraft}
+                  onChange={(e) => setKeyDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && keyDraft.trim()) saveKey();
+                  }}
+                  placeholder="Transcription passcode"
+                  className="w-48 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800"
+                />
+                <button
+                  type="button"
+                  onClick={saveKey}
+                  disabled={!keyDraft.trim()}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 hover:border-teal-500 disabled:opacity-40"
+                >
+                  Save
+                </button>
+                <span className="font-mono text-[10px] text-slate-500">
+                  Asked once, kept on this device.
+                </span>
+              </div>
+            )
+          ) : (
+            <p className="font-mono text-[10px] text-slate-500">{model.note}</p>
+          )}
 
           {showAudioDebug && (
             <label className="flex items-center gap-2 font-mono text-[10px] text-slate-600">
@@ -275,7 +443,9 @@ export default function Capture({ onText, disabled }: Props) {
                 className="mt-0.5"
               />
               <span className="font-mono text-[10px] leading-4 text-amber-900">
-                The patient has been told this consultation will be recorded and has agreed.
+                {cloudSelected
+                  ? 'The patient has been told this consultation will be recorded and sent to an external service to be transcribed, and has agreed.'
+                  : 'The patient has been told this consultation will be recorded and has agreed.'}{' '}
                 Recording without consent is not lawful under the Nigeria Data Protection Act.
               </span>
             </label>
@@ -302,7 +472,7 @@ export default function Capture({ onText, disabled }: Props) {
             <button
               type="button"
               onClick={() => void recorder.start(raw)}
-              disabled={working || disabled || recordBlocked}
+              disabled={working || disabled || recordBlocked || needsKey}
               className="flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
               <Mic size={13} />
@@ -312,7 +482,9 @@ export default function Capture({ onText, disabled }: Props) {
 
         <label
           className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
-            working || disabled || recording || recordBlocked ? 'pointer-events-none opacity-40' : ''
+            working || disabled || recording || recordBlocked || needsKey
+              ? 'pointer-events-none opacity-40'
+              : ''
           }`}
         >
           <FileAudio size={13} />
@@ -396,10 +568,17 @@ export default function Capture({ onText, disabled }: Props) {
         </p>
       )}
 
+      {needsKey && !recording && (
+        <p className="mt-2 font-mono text-[10px] text-amber-700">
+          Enter the transcription passcode above, or switch to Offline (basic).
+        </p>
+      )}
+
       <p className="mt-2 font-mono text-[10px] leading-4 text-slate-500">
-        Everything here runs inside this browser. The audio and the photo never leave the device —
-        only the recogniser files are downloaded, once, and cached. Handwriting is unreliable;
-        printed forms read best.
+        {cloudSelected
+          ? 'Audio is uploaded to a private, temporary store and transcribed by AssemblyAI, an external service. Both copies are deleted as soon as the transcript comes back. Photos are still read on this device.'
+          : 'Everything here runs inside this browser. The audio and the photo never leave the device — only the recogniser files are downloaded, once, and cached.'}{' '}
+        Handwriting is unreliable; printed forms read best.
       </p>
 
       {clip && !recording && (
@@ -425,16 +604,52 @@ export default function Capture({ onText, disabled }: Props) {
         </div>
       )}
 
-      {working && (
+      {fallbackNotice && (
+        <p className="mt-3 flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 font-mono text-[11px] leading-4 text-amber-900">
+          <TriangleAlert size={13} className="mt-0.5 shrink-0" />
+          <span>
+            Cloud transcription unavailable — {fallbackNotice}. Transcribed with Offline (basic) on
+            this device instead; expect lower accuracy and less reliable speaker labels.
+          </span>
+        </p>
+      )}
+
+      {ocrBusy && (
         <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-700">
           <Loader size={13} className="animate-spin text-teal-600" />
           <span>
-            {busy === 'photo' ? 'Reading the image' : 'Transcribing'}
-            {progress?.stage ? ` — ${progress.stage}` : ''}
+            Reading the image{ocrProgress?.stage ? ` — ${ocrProgress.stage}` : ''}
           </span>
-          {progress?.pct !== null && progress?.pct !== undefined && (
-            <span className="text-slate-500">{Math.round(progress.pct * 100)}%</span>
+          {ocrProgress?.pct !== null && ocrProgress?.pct !== undefined && (
+            <span className="text-slate-500">{Math.round(ocrProgress.pct * 100)}%</span>
           )}
+        </div>
+      )}
+
+      {transcribing && (
+        <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-700">
+          <Loader size={13} className="animate-spin text-teal-600" />
+          <span className="tabular-nums">Transcribing… {clock(elapsed)}</span>
+          {stage && <span className="text-slate-500">— {stage}</span>}
+        </div>
+      )}
+
+      {timedOut && pending && !transcribing && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2">
+          <span className="font-mono text-[11px] text-amber-900">
+            Still transcribing after 3 minutes — the job is still running at the service.
+          </span>
+          <button
+            type="button"
+            onClick={() => void finishWith(pending)}
+            className="flex items-center gap-1.5 rounded border border-amber-400 bg-white px-2.5 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+          >
+            <RotateCw size={12} />
+            Retry
+          </button>
+          <span className="font-mono text-[10px] text-amber-800">
+            Checks the same job again; nothing is re-uploaded.
+          </span>
         </div>
       )}
 
@@ -445,97 +660,23 @@ export default function Capture({ onText, disabled }: Props) {
         </p>
       )}
 
-      {preview && (
+      {photoText && (
         <div className="mt-3 rounded border border-teal-300 bg-white p-3">
           <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-            {preview.source === 'photo'
-              ? 'Read from the image'
-              : preview.kind === 'consultation'
-                ? 'Consultation transcript'
-                : 'Dictation transcript'}
+            Read from the image
             <span className="ml-2 normal-case tracking-normal text-slate-400">
               check it before extracting — recognition errors are expected
             </span>
-            {preview.kind === 'consultation' && preview.source === 'voice' && !preview.lines && (
-              <span className="ml-2 normal-case tracking-normal text-amber-700">
-                only one voice was distinguishable — speakers are not separated
-              </span>
-            )}
           </p>
-
-          {preview.stats && (
-            <p className="mt-1 font-mono text-[10px] text-slate-500">
-              {Math.round(preview.stats.audioSeconds)}s of audio in{' '}
-              {Math.round(preview.stats.elapsedSeconds)}s on the{' '}
-              {preview.stats.device === 'webgpu' ? 'GPU' : 'CPU'} —{' '}
-              {(preview.stats.elapsedSeconds / Math.max(1, preview.stats.audioSeconds)).toFixed(1)}×
-              realtime
-            </p>
-          )}
-
-          {preview.lines ? (
-            <>
-              <div className="mt-2 flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
-                  Two voices found — which one is the clinician?
-                </span>
-                <span className="w-full font-mono text-[10px] text-amber-700">
-                  Speaker separation is provisional and not yet validated on real consultations.
-                  Read the lines below before using them.
-                </span>
-                {[0, 1].map((speaker) => (
-                  <button
-                    key={speaker}
-                    type="button"
-                    onClick={() =>
-                      setRoles({
-                        [speaker]: 'clinician',
-                        [speaker === 0 ? 1 : 0]: 'patient',
-                      })
-                    }
-                    className={`rounded border px-2 py-1 font-mono text-[10px] ${
-                      roles[speaker] === 'clinician'
-                        ? 'border-teal-500 bg-teal-50 text-teal-800'
-                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
-                    }`}
-                  >
-                    Voice {speaker + 1} {roles[speaker] === 'clinician' ? 'is the clinician' : ''}
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-2 max-h-52 space-y-1.5 overflow-y-auto">
-                {preview.lines.map((line, i) => (
-                  <div key={`${line.start}-${i}`} className="flex gap-2">
-                    <span
-                      className={`w-20 shrink-0 font-mono text-[9px] uppercase tracking-wide ${
-                        roles[line.speaker] === 'clinician' ? 'text-teal-700' : 'text-slate-500'
-                      }`}
-                    >
-                      {roles[line.speaker] ?? 'clinician'}
-                    </span>
-                    <span className="font-mono text-[11px] leading-4 text-slate-800">
-                      {line.text}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
-              {preview.text}
-            </pre>
-          )}
-
+          <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
+            {photoText}
+          </pre>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
-                const text = preview.lines
-                  ? renderTranscript(preview.lines, roles)
-                  : preview.text;
-                onText(text, { source: preview.source, kind: preview.kind });
-                setPreview(null);
+                onText(photoText, { source: 'photo', kind: 'note' });
+                setPhotoText(null);
               }}
               className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"
             >
@@ -543,7 +684,108 @@ export default function Capture({ onText, disabled }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => setPreview(null)}
+              onClick={() => setPhotoText(null)}
+              className="rounded border border-slate-300 px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:border-slate-400"
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
+
+      {voice && (
+        <div className="mt-3 rounded border border-teal-300 bg-white p-3">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+            {voice.kind === 'consultation' ? 'Consultation transcript' : 'Dictation transcript'}
+            <span className="ml-2 normal-case tracking-normal text-slate-400">
+              check it before extracting — recognition errors are expected
+            </span>
+          </p>
+          <p className="mt-1 font-mono text-[10px] text-slate-500">
+            {voice.result.engine}
+            {voice.result.detail ? ` · ${voice.result.detail}` : ''}
+          </p>
+
+          {speakers.length > 1 ? (
+            <div className="mt-2 space-y-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-2">
+              <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                {speakers.length} voices — tap who each one is
+                <span className="ml-2 normal-case tracking-normal text-slate-400">
+                  unassigned speakers stay as “Speaker A”, “Speaker B”…
+                </span>
+              </p>
+              {voice.onDevice && (
+                <p className="font-mono text-[10px] text-amber-700">
+                  On-device speaker separation is provisional — read the lines below before using
+                  them.
+                </p>
+              )}
+              {speakers.map((speaker) => (
+                <div key={speaker} className="flex flex-wrap items-center gap-1.5">
+                  <span className="w-20 font-mono text-[10px] text-slate-700">Speaker {speaker}</span>
+                  {SPEAKER_ROLES.map((role) => (
+                    <button
+                      key={role}
+                      type="button"
+                      onClick={() => toggleRole(speaker, role)}
+                      className={`rounded border px-2 py-0.5 font-mono text-[10px] ${
+                        roles[speaker] === role
+                          ? 'border-teal-500 bg-teal-50 text-teal-800'
+                          : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
+                      }`}
+                    >
+                      {ROLE_LABELS[role]}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : (
+            voice.kind === 'consultation' && (
+              <p className="mt-1 font-mono text-[10px] text-amber-700">
+                Only one voice was distinguishable — speakers are not separated.
+              </p>
+            )
+          )}
+
+          {speakers.length > 1 ? (
+            <div className="mt-2 max-h-60 space-y-1.5 overflow-y-auto">
+              {turns.map((turn, i) => (
+                <div key={`${turn.start}-${i}`} className="flex gap-2">
+                  <span
+                    className={`w-24 shrink-0 font-mono text-[9px] uppercase tracking-wide ${
+                      roles[turn.speaker] === 'clinician' ? 'text-teal-700' : 'text-slate-500'
+                    }`}
+                  >
+                    {speakerLabel(turn.speaker, roles)}
+                  </span>
+                  <span className="font-mono text-[11px] leading-4 text-slate-800">{turn.text}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
+              {voice.result.text}
+            </pre>
+          )}
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onText(utterancesToTranscript(voice.result.utterances, roles), {
+                  source: 'voice',
+                  kind: voice.kind,
+                });
+                setVoice(null);
+              }}
+              className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"
+            >
+              Use this
+            </button>
+            <button
+              type="button"
+              onClick={() => setVoice(null)}
               className="rounded border border-slate-300 px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:border-slate-400"
             >
               Discard
