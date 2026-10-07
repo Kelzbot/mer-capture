@@ -38,7 +38,7 @@ const SECTIONS: Record<Profile, Array<{ title: string; fields: string[] }>> = {
 const SAMPLE_NOTES: Array<{ label: string; text: string }> = [
   {
     label: 'Adult ART — routine follow-up',
-    text: `FMC Jabi — ART Clinic Follow-up
+    text: `FMC Lakeside — ART Clinic Follow-up
 Name: Mrs Adaeze Okonkwo    Hosp No: 038/10/23/OPT
 Age 34yrs, Female. Phone 08034567890
 Dx confirmed positive 04/02/2019, commenced ART 18/02/2019.
@@ -50,8 +50,8 @@ Wt 62kg. Status: Active on treatment.`,
   },
   {
     label: 'Adult ART — new initiation from ANC',
-    text: `Wuse District Hospital ART/PMTCT
-Patient ID: FCT/WUS/0311   Miss Ngozi Eze, 24yr F
+    text: `Northgate District Hospital ART/PMTCT
+Patient ID: DEMO/NGT/0311   Miss Ngozi Eze, 24yr F
 Referred from ANC. HIV confirmed 02-Apr-26 (repeat reactive).
 Commenced ART same day 02-Apr-26 on TLD, first line.
 ANC status: Pregnant, 22 weeks GA.
@@ -61,11 +61,11 @@ Tel: 0803 445 9921. Booked for viral load at 6 months.`,
   },
   {
     label: 'EID — infant DBS PCR',
-    text: `NRL DBS Sample Form — Gwagwalada Cottage Hospital
+    text: `Reference Lab DBS Sample Form — Brookside Cottage Hospital
 Baby of Mrs Chiamaka Nwosu. Hospital number 1145/EID/26
-Sample Reference Number: NRL/GOCL/23/5298
+Sample Reference Number: RLAB/BRK/23/5298
 Infant DOB 15/02/2026, sex F. Age at collection 2 months.
-DBS collected 10/04/2026, received at NRL 14/04/2026.
+DBS collected 10/04/2026, received at the reference lab 14/04/2026.
 Assay run 18-Apr-26. Result dispatched 22/04/2026.
 Sample was testable. Reason for PCR: first PCR at 6 weeks.
 DNA PCR result: Negative.
@@ -75,8 +75,8 @@ Rapid test not yet done.`,
   },
   {
     label: 'Adult ART — second line, defaulted',
-    text: `Nyanya General Hosp - ART review
-PID: FCT/NYA/0207 | Alhaji Musa Danjuma | 55 M
+    text: `Millfield General Hosp - ART review
+PID: DEMO/MLF/0207 | Alhaji Musa Danjuma | 55 M
 On ART since 19-Mar-2014. Switched to 2nd line AZT/3TC/LPV/r.
 Last seen 20/05/2026, was due 21/06/2026 but has not come.
 Defaulted - 3 missed appointments. Tracking ongoing.
