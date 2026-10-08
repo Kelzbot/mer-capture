@@ -40,6 +40,47 @@ export function mergeTurns(utterances: Utterance[]): Utterance[] {
   return turns;
 }
 
+// "No." is deliberately absent: in a consultation it is almost always a whole
+// answer ("Any fever?" "No."), and joining it to the next sentence would glue
+// the patient's reply onto the clinician's next question.
+const ABBREVIATION_END = /\b(?:Dr|Mr|Mrs|Ms|Prof|Sr|Jr|St|vs|approx|e\.g|i\.e)\.$/i;
+
+export function splitSentences(text: string): string[] {
+  const pieces = text
+    .split(/(?<=[.?!])\s+(?=\S)/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const sentences: string[] = [];
+  for (const piece of pieces) {
+    const last = sentences[sentences.length - 1];
+    if (last && ABBREVIATION_END.test(last)) sentences[sentences.length - 1] = `${last} ${piece}`;
+    else sentences.push(piece);
+  }
+  return sentences;
+}
+
+// One line per sentence. Diarization can return a single block holding several
+// real turns — a clinician's question and the patient's answer under one
+// speaker — and labelling whole speakers cannot undo that. Sentences can be
+// reassigned one at a time.
+export function toLines(utterances: Utterance[]): Utterance[] {
+  const lines: Utterance[] = [];
+  for (const u of utterances) {
+    for (const sentence of splitSentences(u.text)) {
+      lines.push({ speaker: u.speaker, text: sentence, start: u.start, end: u.end });
+    }
+  }
+  return lines;
+}
+
+const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+// The letter for a speaker the diarizer missed entirely, e.g. when everyone was
+// merged into Speaker A.
+export function nextSpeaker(speakers: string[]): string {
+  return [...LETTERS].find((l) => !speakers.includes(l)) ?? `S${speakers.length + 1}`;
+}
+
 // The string handed to extraction. One "Label: text" line per turn; a speaker
 // with no assigned role passes through as "Speaker A". A single-voice transcript
 // (a dictated note) goes through as plain text, exactly as typed notes always have.

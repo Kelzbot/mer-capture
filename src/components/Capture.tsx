@@ -33,11 +33,12 @@ import { OfflineProvider } from '../lib/transcription/offline';
 import { startWithFallback } from '../lib/transcription/run';
 import { readDemoKey, writeDemoKey } from '../lib/transcription/demoKey';
 import {
-  mergeTurns,
+  nextSpeaker,
   ROLE_LABELS,
   SPEAKER_ROLES,
   speakerLabel,
   speakersIn,
+  toLines,
   utterancesToTranscript,
   type SpeakerRole,
   type SpeakerRoles,
@@ -50,6 +51,7 @@ import {
   type TranscriptionJob,
   type TranscriptionProvider,
   type TranscriptionResult,
+  type Utterance,
 } from '../lib/transcription/types';
 
 type Props = {
@@ -117,6 +119,8 @@ export default function Capture({ onText, disabled }: Props) {
     onDevice: boolean;
   } | null>(null);
   const [roles, setRoles] = useState<SpeakerRoles>({});
+  const [lines, setLines] = useState<Utterance[]>([]);
+  const [editedLines, setEditedLines] = useState<Set<number>>(() => new Set());
 
   const abortRef = useRef<AbortController | null>(null);
 
@@ -154,6 +158,8 @@ export default function Capture({ onText, disabled }: Props) {
       try {
         const result = await next.provider.wait(next.job, onStatus, controller.signal);
         setVoice({ result, kind: next.kind, onDevice: next.provider.onDevice });
+        setLines(toLines(result.utterances));
+        setEditedLines(new Set());
         setRoles({});
         setPending(null);
       } catch (e) {
@@ -262,6 +268,11 @@ export default function Capture({ onText, disabled }: Props) {
     setRoles((current) => ({ ...current, [speaker]: current[speaker] === role ? undefined : role }));
   }
 
+  function reassignLine(index: number, speaker: string) {
+    setLines((current) => current.map((line, i) => (i === index ? { ...line, speaker } : line)));
+    setEditedLines((current) => new Set(current).add(index));
+  }
+
   async function runOcr(file: File) {
     setError(null);
     setPhotoText(null);
@@ -296,8 +307,9 @@ export default function Capture({ onText, disabled }: Props) {
   const needsKey = cloudSelected && !demoKey;
   const nearLimit = recording && recorder.elapsed >= RECORDING_WARN_SECONDS;
   const shownError = error ?? recorder.error;
-  const speakers = voice ? speakersIn(voice.result.utterances) : [];
-  const turns = voice ? mergeTurns(voice.result.utterances) : [];
+  // Speakers as the clinician has left them, including any split out by hand.
+  const speakers = voice ? speakersIn(lines) : [];
+  const newSpeaker = nextSpeaker(speakers);
 
   return (
     <div className="mt-3 rounded border border-slate-300 bg-slate-50 p-3">
@@ -743,26 +755,49 @@ export default function Capture({ onText, disabled }: Props) {
           ) : (
             voice.kind === 'consultation' && (
               <p className="mt-1 font-mono text-[10px] text-amber-700">
-                Only one voice was distinguishable — speakers are not separated.
+                Only one voice was distinguishable. If two people spoke, move the other person’s
+                lines to Speaker {newSpeaker} below.
               </p>
             )
           )}
 
-          {speakers.length > 1 ? (
-            <div className="mt-2 max-h-60 space-y-1.5 overflow-y-auto">
-              {turns.map((turn, i) => (
-                <div key={`${turn.start}-${i}`} className="flex gap-2">
-                  <span
-                    className={`w-24 shrink-0 font-mono text-[9px] uppercase tracking-wide ${
-                      roles[turn.speaker] === 'clinician' ? 'text-teal-700' : 'text-slate-500'
-                    }`}
-                  >
-                    {speakerLabel(turn.speaker, roles)}
+          {voice.kind === 'consultation' ? (
+            <>
+              <p className="mt-2 font-mono text-[10px] text-slate-500">
+                Wrong person on a line? Change it — each sentence can be moved on its own.
+                {editedLines.size > 0 && (
+                  <span className="ml-1 text-amber-700">
+                    {editedLines.size} line{editedLines.size === 1 ? '' : 's'} corrected by hand.
                   </span>
-                  <span className="font-mono text-[11px] leading-4 text-slate-800">{turn.text}</span>
-                </div>
-              ))}
-            </div>
+                )}
+              </p>
+              <div className="mt-1.5 max-h-72 space-y-1 overflow-y-auto">
+                {lines.map((line, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <select
+                      value={line.speaker}
+                      onChange={(e) => reassignLine(i, e.target.value)}
+                      aria-label={`Speaker for line ${i + 1}`}
+                      className={`w-28 shrink-0 rounded border bg-white px-1 py-0.5 font-mono text-[9px] uppercase tracking-wide ${
+                        editedLines.has(i)
+                          ? 'border-amber-400 text-amber-800'
+                          : roles[line.speaker] === 'clinician'
+                            ? 'border-slate-300 text-teal-700'
+                            : 'border-slate-300 text-slate-600'
+                      }`}
+                    >
+                      {speakers.map((s) => (
+                        <option key={s} value={s}>
+                          {speakerLabel(s, roles)}
+                        </option>
+                      ))}
+                      <option value={newSpeaker}>+ Speaker {newSpeaker} (new)</option>
+                    </select>
+                    <span className="font-mono text-[11px] leading-4 text-slate-800">{line.text}</span>
+                  </div>
+                ))}
+              </div>
+            </>
           ) : (
             <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
               {voice.result.text}
@@ -773,7 +808,7 @@ export default function Capture({ onText, disabled }: Props) {
             <button
               type="button"
               onClick={() => {
-                onText(utterancesToTranscript(voice.result.utterances, roles), {
+                onText(utterancesToTranscript(lines, roles), {
                   source: 'voice',
                   kind: voice.kind,
                 });

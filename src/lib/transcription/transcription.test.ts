@@ -6,7 +6,7 @@ import {
 } from '../../../supabase/functions/_shared/assemblyai.ts';
 import { MEDICAL_KEYTERMS } from '../../config/medicalKeyterms';
 import { AssemblyAIProvider } from './assemblyai';
-import { utterancesToTranscript } from './format';
+import { nextSpeaker, speakersIn, splitSentences, toLines, utterancesToTranscript } from './format';
 import { startWithFallback } from './run';
 import {
   PasscodeError,
@@ -103,6 +103,88 @@ describe('AssemblyAI response to extraction input', () => {
   it('keeps the text as one speaker when no utterances come back', () => {
     const result = normaliseTranscript({ status: 'completed', text: 'Fever for two days.', utterances: null });
     expect(result.utterances).toEqual([{ speaker: 'A', text: 'Fever for two days.', start: 0, end: 0 }]);
+  });
+});
+
+describe('correcting speakers line by line', () => {
+  // Verbatim from the first smoke test against the live proxy (8 Oct 2026):
+  // diarization returned six real turns as two blocks, with the patient's
+  // answers merged into the clinician's opening block.
+  const SMOKE_TEST_RESULT = normaliseTranscript({
+    status: 'completed',
+    text: '',
+    utterances: [
+      {
+        speaker: 'A',
+        text: 'Good morning. What brings you in today? I have had a cough for 5 days, with fever at night. Any blood in the sputum? Any chest pain? No blood. I think it is typhoid, my sister had the same thing.',
+        start: 0,
+        end: 14000,
+      },
+      {
+        speaker: 'B',
+        text: 'Your chest has crepitations on the right. I will send a full blood count and a malaria RDT. This looks like pneumonia. Start amoxicillin-clavulanate 625 mg, 3 times daily for 7 days, and paracetamol 1 gram as needed.',
+        start: 14200,
+        end: 30000,
+      },
+    ],
+  });
+
+  it('splits a merged block into sentences, each starting on its block’s speaker', () => {
+    const lines = toLines(SMOKE_TEST_RESULT.utterances);
+    expect(lines.map((l) => l.text)).toEqual([
+      'Good morning.',
+      'What brings you in today?',
+      'I have had a cough for 5 days, with fever at night.',
+      'Any blood in the sputum?',
+      'Any chest pain?',
+      'No blood.',
+      'I think it is typhoid, my sister had the same thing.',
+      'Your chest has crepitations on the right.',
+      'I will send a full blood count and a malaria RDT.',
+      'This looks like pneumonia.',
+      'Start amoxicillin-clavulanate 625 mg, 3 times daily for 7 days, and paracetamol 1 gram as needed.',
+    ]);
+    expect(lines.slice(0, 7).every((l) => l.speaker === 'A')).toBe(true);
+    expect(lines.slice(7).every((l) => l.speaker === 'B')).toBe(true);
+  });
+
+  it('repairs the smoke-test merge: the typhoid guess ends up as the patient’s line', () => {
+    const lines = toLines(SMOKE_TEST_RESULT.utterances);
+    // The clinician moves their own four questions from A to B.
+    const corrected = lines.map((l, i) => ([0, 1, 3, 4].includes(i) ? { ...l, speaker: 'B' } : l));
+    const transcript = utterancesToTranscript(corrected, { A: 'patient', B: 'clinician' });
+
+    expect(transcript.split('\n')).toEqual([
+      'Clinician: Good morning. What brings you in today?',
+      'Patient: I have had a cough for 5 days, with fever at night.',
+      'Clinician: Any blood in the sputum? Any chest pain?',
+      'Patient: No blood. I think it is typhoid, my sister had the same thing.',
+      'Clinician: Your chest has crepitations on the right. I will send a full blood count and a malaria RDT. This looks like pneumonia. Start amoxicillin-clavulanate 625 mg, 3 times daily for 7 days, and paracetamol 1 gram as needed.',
+    ]);
+    expect(transcript).toMatch(/^Patient: .*typhoid/m);
+    expect(transcript).not.toMatch(/^Clinician: .*typhoid/m);
+  });
+
+  it('can split out a speaker the diarizer missed entirely', () => {
+    const lines = toLines([{ speaker: 'A', text: 'Any fever? Yes, at night.', start: 0, end: 3000 }]);
+    expect(speakersIn(lines)).toEqual(['A']);
+    const added = nextSpeaker(speakersIn(lines));
+    expect(added).toBe('B');
+    const corrected = lines.map((l, i) => (i === 1 ? { ...l, speaker: added } : l));
+    expect(utterancesToTranscript(corrected, { A: 'clinician', B: 'patient' })).toBe(
+      'Clinician: Any fever?\nPatient: Yes, at night.',
+    );
+  });
+
+  it('keeps a bare "No." as its own line, so a patient’s answer is never glued to the next question', () => {
+    expect(splitSentences('Any fever? No. Any cough?')).toEqual(['Any fever?', 'No.', 'Any cough?']);
+  });
+
+  it('does not split on titles or decimals', () => {
+    expect(splitSentences('Seen by Dr. Okafor today. Temperature 38.4 C, e.g. febrile.')).toEqual([
+      'Seen by Dr. Okafor today.',
+      'Temperature 38.4 C, e.g. febrile.',
+    ]);
   });
 });
 
