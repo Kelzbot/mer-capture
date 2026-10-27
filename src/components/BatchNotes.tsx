@@ -74,7 +74,7 @@ export default function BatchNotes({ apiKey, provider }: Props) {
   const controller = useRef<AbortController | null>(null);
 
   const total = file?.rows.length ?? 0;
-  const succeeded = results.filter((r) => r?.status === 'ok');
+  const succeeded = useMemo(() => results.filter((r) => r?.status === 'ok'), [results]);
   const failed = results.filter((r) => r?.status === 'error');
 
   const docRecords: DocRecord[] = useMemo(

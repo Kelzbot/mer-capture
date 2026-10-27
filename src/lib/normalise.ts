@@ -114,7 +114,9 @@ export function parseViralLoad(v: unknown): {
   qualitative: string | null;
   suppressed: boolean | null;
 } {
-  const s = parseMissing(v);
+  // 999 / 9999 are missing-value placeholders elsewhere, but a real lab result here.
+  const asText = typeof v === 'number' ? (isFinite(v) ? String(v) : '') : String(v ?? '').trim();
+  const s = /^\d[\d,]*(\.\d+)?$/.test(asText) ? asText : parseMissing(v);
   if (s === null) return { value: null, qualitative: null, suppressed: null };
 
   const cleaned = s
@@ -235,6 +237,15 @@ export function parseResult(v: unknown): 'positive' | 'negative' | 'indeterminat
   return null;
 }
 
+export function parsePregnant(v: unknown): boolean | null {
+  const s = parseMissing(v);
+  if (s === null) return null;
+  const yn = parseYesNo(s);
+  if (yn !== null) return yn;
+  if (/\bnot\b|\bnon/i.test(s)) return false;
+  return /pregnan|anc|gravid/i.test(s) ? true : null;
+}
+
 export function parseNumber(v: unknown): number | null {
   const s = parseMissing(v);
   if (s === null) return null;
@@ -267,9 +278,12 @@ export function ageBand(n: number | null): string | null {
 
 export function ageFromDob(dob: Date | null, asOf: Date): number | null {
   if (!dob) return null;
-  const days = daysBetween(dob, asOf);
-  if (days === null || days < 0) return null;
-  return Math.floor(days / 365.25);
+  let age = asOf.getUTCFullYear() - dob.getUTCFullYear();
+  const beforeBirthday =
+    asOf.getUTCMonth() < dob.getUTCMonth() ||
+    (asOf.getUTCMonth() === dob.getUTCMonth() && asOf.getUTCDate() < dob.getUTCDate());
+  if (beforeBirthday) age -= 1;
+  return age < 0 ? null : age;
 }
 
 export function monthsBetween(from: Date | null, to: Date | null): number | null {

@@ -1,8 +1,10 @@
 import {
   ageBand,
+  ageFromDob,
   fmtDate,
   parseDate,
   parseMissing,
+  parsePregnant,
   parseRegimen,
   parseResult,
   parseSex,
@@ -10,8 +12,9 @@ import {
   parseYesNo,
 } from './normalise';
 import { autoMap } from './mapper';
-import { computeIndicators, txCurr, txPvlsN, type Period } from './indicators';
+import { computeIndicators, pmtctArt, tbStatN, txCurr, txMl, txPvlsN, type Period } from './indicators';
 import { runDQ } from './dq';
+import { deidentify } from './deidentify';
 
 let failures = 0;
 let checks = 0;
@@ -114,6 +117,19 @@ check('ageBand 15', ageBand(15), '15-19');
 check('ageBand 49', ageBand(49), '45-49');
 check('ageBand 50', ageBand(50), '50+');
 
+check('parseViralLoad 999 is a result', parseViralLoad('999'), { value: 999, qualitative: null, suppressed: true });
+check('parseViralLoad 9999 is unsuppressed', parseViralLoad(9999).suppressed, false);
+check('ageFromDob on first birthday', ageFromDob(new Date(Date.UTC(2025, 0, 1)), new Date(Date.UTC(2026, 0, 1))), 1);
+check('ageFromDob day before 15th birthday', ageFromDob(new Date(Date.UTC(2011, 5, 30)), new Date(Date.UTC(2026, 5, 29))), 14);
+check('parsePregnant not pregnant', parsePregnant('Not pregnant'), false);
+check('parsePregnant non-pregnant', parsePregnant('Non-pregnant'), false);
+check('parsePregnant ANC', parsePregnant('ANC'), true);
+check('parsePregnant yes', parsePregnant('Yes'), true);
+
+const redactedPhone = deidentify('Phone 08031234567 2 children, alt +234 803 123 4567').redacted;
+check('deidentify phone followed by a number', redactedPhone, 'Phone [PHONE_1] 2 children, alt [PHONE_2]');
+check('deidentify leaves a short number alone', deidentify('CD4 0712 cells').redacted, 'CD4 0712 cells');
+
 const currentRow = {
   art_start_date: '2020-01-15',
   visit_date: '2026-01-10',
@@ -142,6 +158,16 @@ const tndRow = {
 check('TX_PVLS_N counts TND as suppressed', txPvlsN(tndRow, period).status, 'met');
 check('TX_PVLS_N rejects high VL', txPvlsN({ ...tndRow, viral_load_result: '1,450' }, period).status, 'not_met');
 check('TX_PVLS_N accepts <20', txPvlsN({ ...tndRow, viral_load_result: '<20' }, period).status, 'met');
+check('TX_PVLS_N counts VL 9999 as not suppressed', txPvlsN({ ...tndRow, viral_load_result: '9999' }, period).status, 'not_met');
+
+const mlRow = { art_start_date: '2020-01-15', next_pickup_date: '2026-04-20' };
+check('TX_ML lost to follow-up is an interruption', txMl({ ...mlRow, current_status: 'Lost to follow-up' }, period).sub, 'Interruption in treatment');
+check('TX_ML "due to" is not a transfer', txMl({ ...mlRow, current_status: 'Stopped due to side effects' }, period).sub, 'Stopped');
+check('TX_ML TO is a transfer', txMl({ ...mlRow, current_status: 'TO' }, period).sub, 'Transferred out');
+
+check('TB_STAT_N "Not done" is not documented', tbStatN({ ...currentRow, tb_screen_result: 'Not done' }, period).status, 'not_met');
+check('TB_STAT_N negative screen is documented', tbStatN({ ...currentRow, tb_screen_result: 'Negative' }, period).status, 'met');
+check('PMTCT_ART not pregnant is not met', pmtctArt({ ...currentRow, sex: 'F', pregnancy_status: 'Not pregnant' }, period).status, 'not_met');
 
 const mapAdult = autoMap([
   'Patient ID', 'Sex', 'Age', 'Facility Name', 'ART Start Date', 'Next Pickup Date', 'Viral Load', 'VL Date',
@@ -166,6 +192,8 @@ const dqFlags = runDQ(dqRows, 'adult_art', period);
 ok('DQ flags ART before diagnosis', dqFlags.some((f) => f.rule === 'art_before_diagnosis'));
 ok('DQ flags duplicate patient id', dqFlags.some((f) => f.rule === 'duplicate_patient_id'));
 ok('DQ flags pregnancy on male', dqFlags.some((f) => f.rule === 'pregnancy_on_male' && f.severity === 'critical'));
+const inactive = runDQ([{ patient_id: 'B1', current_status: 'Inactive', next_pickup_date: '2026-01-01' }], 'adult_art', period);
+ok('DQ does not read "Inactive" as active', !inactive.some((f) => f.rule === 'active_but_overdue'));
 
 const report = computeIndicators(
   [
@@ -202,4 +230,5 @@ check('EID transport TAT median', eidReport.tatMedians.transport, 4);
 check('EID total TAT median', eidReport.tatMedians.total, 12);
 
 console.log(`${checks - failures}/${checks} checks passed`);
-if (failures > 0) process.exit(1);
+// Throw rather than process.exit, so the vitest wrapper (smoke.test.ts) fails too.
+if (failures > 0) throw new Error(`${failures} smoke checks failed`);

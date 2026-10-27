@@ -29,3 +29,6 @@ supabase/.branches/
 
 # STT bake-off output: transcripts may quote real patients
 bakeoff/
+
+# Tesseract drops its language data in the working directory when run under Node
+*.traineddata

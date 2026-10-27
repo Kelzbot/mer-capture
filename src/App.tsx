@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Activity, KeyRound } from 'lucide-react';
+import { Activity, ArrowLeft, KeyRound } from 'lucide-react';
 import Upload from './components/Upload';
 import Mapping from './components/Mapping';
 import Dashboard from './components/Dashboard';
@@ -14,12 +14,12 @@ import { PROVIDER_LABELS, PROVIDER_MODELS, type Provider } from './lib/extract';
 
 const STEPS = ['Upload', 'Mapping', 'Dashboard', 'Data quality'];
 
-type Mode = 'dataset' | 'note' | 'batch';
+type Mode = 'note' | 'batch' | 'dataset';
 
-const MODES: Array<{ id: Mode; label: string }> = [
-  { id: 'dataset', label: 'Dataset' },
-  { id: 'note', label: 'Single note' },
-  { id: 'batch', label: 'Batch notes' },
+// The consultation is the app; these are analyst tools kept one click away.
+const TOOLS: Array<{ id: Mode; label: string }> = [
+  { id: 'batch', label: 'Batch notes from a spreadsheet' },
+  { id: 'dataset', label: 'HIV programme dataset (PEPFAR MER)' },
 ];
 
 function isoToDate(iso: string): Date {
@@ -28,7 +28,7 @@ function isoToDate(iso: string): Date {
 }
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>('dataset');
+  const [mode, setMode] = useState<Mode>('note');
   const [apiKey, setApiKey] = useState('');
   const [provider, setProvider] = useState<Provider>('gemini');
   const [step, setStep] = useState(0);
@@ -78,47 +78,58 @@ export default function App() {
             <div>
               <h1 className="text-base font-semibold tracking-tight">MER Capture</h1>
               <p className="font-mono text-[11px] text-slate-400">
-                PEPFAR indicator and data quality workbench — Nigeria
+                Consultation to structured, coded record — Nigeria
               </p>
             </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-3 font-mono text-[11px]">
-            <span className="text-slate-400">REPORTING PERIOD</span>
-            <input
-              type="date"
-              value={periodStart}
-              onChange={(e) => setPeriodStart(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-100"
-            />
-            <span className="text-slate-500">to</span>
-            <input
-              type="date"
-              value={periodEnd}
-              onChange={(e) => setPeriodEnd(e.target.value)}
-              className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-100"
-            />
+          <div className="ml-auto flex flex-wrap items-center gap-3 font-mono text-[11px]">
+            {mode === 'note' ? (
+              <select
+                value=""
+                onChange={(e) => e.target.value && setMode(e.target.value as Mode)}
+                aria-label="Programme tools"
+                className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-300"
+              >
+                <option value="">Programme tools…</option>
+                {TOOLS.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.label}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setMode('note')}
+                className="flex items-center gap-1.5 rounded bg-teal-500 px-3 py-1 text-xs font-medium text-slate-950"
+              >
+                <ArrowLeft size={13} />
+                Back to consultation
+              </button>
+            )}
           </div>
         </div>
 
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-6 pb-2">
-          <div className="flex gap-1">
-            {MODES.map((m) => (
-              <button
-                key={m.id}
-                type="button"
-                onClick={() => setMode(m.id)}
-                className={[
-                  'rounded px-3 py-1 text-xs font-medium transition-colors',
-                  mode === m.id
-                    ? 'bg-teal-500 text-slate-950'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200',
-                ].join(' ')}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
+          {mode === 'dataset' && (
+            <div className="flex items-center gap-3 font-mono text-[11px]">
+              <span className="text-slate-400">REPORTING PERIOD</span>
+              <input
+                type="date"
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
+                className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-100"
+              />
+              <span className="text-slate-500">to</span>
+              <input
+                type="date"
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
+                className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-slate-100"
+              />
+            </div>
+          )}
           {mode !== 'dataset' && (
             <div className="ml-auto flex flex-wrap items-center gap-3 font-mono text-[11px]">
               <KeyRound size={13} className="text-slate-400" />
@@ -208,7 +219,9 @@ export default function App() {
       </main>
 
       <footer className="mx-auto max-w-7xl px-6 pb-10 font-mono text-[10px] text-slate-500">
-        All processing runs in this browser tab. Nothing is uploaded, stored or persisted.
+        Nothing is stored by this app. Notes are de-identified in this tab before they are sent for
+        extraction; cloud transcription sends the recording to the transcription service and deletes it
+        afterwards.
       </footer>
     </div>
   );

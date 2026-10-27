@@ -6,6 +6,7 @@ import { extractNote, PROVIDER_LABELS, type ExtractionResult, type Provider, typ
 import { redactionCounts } from '../lib/deidentify';
 import { computeIndicators, type Period } from '../lib/indicators';
 import { runDQ } from '../lib/dq';
+import { computeDocQuality, type DocFields } from '../lib/docQuality';
 
 type Props = {
   apiKey: string;
@@ -35,7 +36,37 @@ const SECTIONS: Record<Profile, Array<{ title: string; fields: string[] }>> = {
   ],
 };
 
+const PROFILE_LABELS: Record<Profile, string> = {
+  clinical: 'General outpatient',
+  adult_art: 'HIV — adult ART',
+  eid: 'HIV — infant EID',
+};
+
 const SAMPLE_NOTES: Array<{ label: string; text: string }> = [
+  {
+    label: 'General — fever in a hypertensive adult',
+    text: `General Outpatient Clinic — Consultation
+Name: Mr Tunde Bakare    Hosp No: 2231/OPD/26
+42yr M, trader. Phone 08061234570
+C/O fever and headache x 3 days, body pains, poor appetite. No cough, no diarrhoea.
+PMH: hypertensive on amlodipine 5mg daily. NKDA.
+O/E: febrile 38.6C, not pale, anicteric. BP 142/90, PR 96. Chest clear. Abdomen soft, non-tender.
+mRDT positive. FBC requested.
+Impression: uncomplicated malaria. DDx typhoid fever.
+Plan: artemether-lumefantrine 80/480mg bd x 3 days, paracetamol 1g tds x 3 days.
+Continue amlodipine. Review in 3 days or earlier if worse.`,
+  },
+  {
+    label: 'General — child with cough and fast breathing',
+    text: `Paediatric OPD
+Baby Amina Yusuf, 3yrs F. Brought by mother.
+C/O cough and fast breathing x 2 days, fever since yesterday. Feeding poorly. No vomiting.
+Immunisation up to date. Wt 13kg.
+O/E: temp 38.9C, RR 48/min, mild subcostal recession. Crackles R lower zone. SpO2 94% on air.
+Dx: community-acquired pneumonia.
+Rx: amoxicillin 40mg/kg/dose bd x 5 days. Paracetamol 15mg/kg prn.
+Counselled mother on danger signs. Review in 48 hours.`,
+  },
   {
     label: 'Adult ART — routine follow-up',
     text: `FMC Lakeside — ART Clinic Follow-up
@@ -123,6 +154,7 @@ function statusTone(status: string): string {
 export default function NoteExtract({ apiKey, provider, period }: Props) {
   const [noteText, setNoteText] = useState(SAMPLE_NOTES[0].text);
   const [noteKind, setNoteKind] = useState<SourceKind>('note');
+  const [type, setType] = useState<Profile | 'auto'>('auto');
   const [result, setResult] = useState<ExtractionResult | null>(null);
   const [sourceText, setSourceText] = useState('');
   const [edits, setEdits] = useState<Record<string, string>>({});
@@ -145,6 +177,14 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
 
   const analysis = useMemo(() => {
     if (!result || !row) return null;
+    // Programme indicators only mean something for HIV records; a general consultation
+    // gets the documentation-quality rules instead.
+    if (result.profile === 'clinical') {
+      return {
+        results: {},
+        flags: computeDocQuality([{ recordId: 'This note', fields: row as DocFields }]).flags,
+      };
+    }
     const report = computeIndicators([row], period, result.profile);
     return {
       results: report.evaluated[0]?.results ?? {},
@@ -156,7 +196,14 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const extracted = await extractNote(noteText, apiKey, provider, undefined, noteKind);
+      const extracted = await extractNote(
+        noteText,
+        apiKey,
+        provider,
+        undefined,
+        noteKind,
+        type === 'auto' ? undefined : type,
+      );
       setResult(extracted);
       setSourceText(noteText);
       setEdits({});
@@ -199,7 +246,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded border border-slate-300 bg-white p-6">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">Clinic note</h2>
+            <h2 className="text-sm font-semibold text-slate-800">Consultation</h2>
             <select
               onChange={(e) => {
                 const sample = SAMPLE_NOTES[Number(e.target.value)];
@@ -235,6 +282,21 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
           />
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+              TYPE
+              <select
+                value={type}
+                onChange={(e) => setType(e.target.value as Profile | 'auto')}
+                className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-800"
+              >
+                <option value="auto">Auto-detect</option>
+                {(Object.keys(PROFILE_LABELS) as Profile[]).map((p) => (
+                  <option key={p} value={p}>
+                    {PROFILE_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
             <button
               type="button"
               onClick={run}
@@ -283,7 +345,8 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
             {result && (
               <>
                 <span className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5 font-mono text-[10px] text-teal-700">
-                  {result.profile === 'eid' ? 'EID / infant PCR' : 'Adult ART'}
+                  {PROFILE_LABELS[result.profile]}
+                  {type === 'auto' && ' · detected'}
                 </span>
                 <span className="font-mono text-[10px] text-slate-500">
                   {Object.keys(result.fields).length} fields
@@ -360,7 +423,8 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       </div>
 
       {result && analysis && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className={`grid gap-6 ${result.profile === 'clinical' ? '' : 'lg:grid-cols-2'}`}>
+          {result.profile !== 'clinical' && (
           <section className="rounded border border-slate-300 bg-white p-6">
             <h3 className="text-sm font-semibold text-slate-800">Indicators for this record</h3>
             <p className="mt-1 font-mono text-[10px] text-slate-500">
@@ -380,16 +444,17 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
               ))}
             </ul>
           </section>
+          )}
 
           <section className="rounded border border-slate-300 bg-white p-6">
             <h3 className="text-sm font-semibold text-slate-800">
-              Data quality flags
+              Quality flags
               <span className="ml-2 font-mono text-[11px] font-normal text-slate-500">
                 {analysis.flags.length}
               </span>
             </h3>
             <p className="mt-1 font-mono text-[10px] text-slate-500">
-              Computed by dq.ts from the edited values above.
+              Rule-based checks on the edited values above — no model involvement.
             </p>
             {analysis.flags.length === 0 ? (
               <p className="mt-4 font-mono text-[11px] text-slate-500">No flags raised.</p>

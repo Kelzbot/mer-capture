@@ -12,8 +12,8 @@ export type DeidResult = {
 
 const TOKEN_PATTERN = /\[(?:NAME|PHONE|ID)_\d+\]/g;
 
-const PHONE_CANDIDATE = /(?:\+?234|0)[\d\s-]{9,16}/g;
-const PHONE_DIGITS = [/^234\d{10}$/, /^0[789][01]\d{8}$/];
+// The exact phone shape, so a number that follows it ("08031234567 2 children") can't spoil the match.
+const PHONE = /(?:\+?\b234[\s-]?|\b0)[789][01](?:[\s-]?\d){8}\b/g;
 
 const LABELLED_ID =
   /\b(hosp(?:ital)?\.?\s*(?:number|num|no)|file\s*(?:number|num|no)|folder\s*(?:number|num|no)|patient\s*id|pid)(\s*[:\-]?\s*)([A-Za-z0-9][A-Za-z0-9/\-]*)/gi;
@@ -50,13 +50,7 @@ export function deidentify(text: string): DeidResult {
 
   let out = text;
 
-  out = out.replace(PHONE_CANDIDATE, (match) => {
-    const trimmed = match.trimEnd();
-    const tail = match.slice(trimmed.length);
-    const digits = trimmed.replace(/\D/g, '');
-    if (!PHONE_DIGITS.some((re) => re.test(digits))) return match;
-    return tokenFor(trimmed, 'PHONE') + tail;
-  });
+  out = out.replace(PHONE, (match) => tokenFor(match, 'PHONE'));
 
   out = out.replace(LABELLED_ID, (_m, label: string, sep: string, value: string) =>
     `${label}${sep}${tokenFor(value, 'ID')}`,

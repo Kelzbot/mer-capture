@@ -171,6 +171,31 @@ async function deleteAudio(path: string | null): Promise<void> {
   if (!res || !res.ok) console.warn(`storage delete failed for ${path}`);
 }
 
+// A tab closed mid-job never polls to completion, so its audio would stay forever.
+// Anything older than the signed read URL's lifetime can no longer be fetched by
+// AssemblyAI, so it is safe to delete. Best effort: never blocks an upload.
+async function sweepStaleAudio(): Promise<void> {
+  const res = await fetch(`${STORAGE}/object/list/${BUCKET}`, {
+    method: 'POST',
+    headers: storageHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ prefix: 'encounters', limit: 100, sortBy: { column: 'created_at', order: 'asc' } }),
+  }).catch(() => null);
+  if (!res || !res.ok) return;
+  const items = (await res.json().catch(() => [])) as Array<{ name?: string; created_at?: string }>;
+  const cutoff = Date.now() - SIGNED_READ_SECONDS * 1000;
+  const stale = items
+    .filter((i) => i.name && i.created_at && Date.parse(i.created_at) < cutoff)
+    .map((i) => `encounters/${i.name}`)
+    .filter((p) => PATH_PATTERN.test(p));
+  if (stale.length === 0) return;
+  const del = await fetch(`${STORAGE}/object/${BUCKET}`, {
+    method: 'DELETE',
+    headers: storageHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ prefixes: stale }),
+  }).catch(() => null);
+  if (!del || !del.ok) console.warn(`stale audio sweep failed for ${stale.length} objects`);
+}
+
 async function deleteTranscript(id: string): Promise<void> {
   const res = await fetch(`${ASSEMBLYAI_BASE}/transcript/${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -191,6 +216,7 @@ async function handleSign(body: Record<string, unknown>, origin: string | null):
     return json({ error: `Not an audio file (${contentType || 'no type'})` }, 415, origin);
   }
 
+  await sweepStaleAudio();
   const path = `encounters/${crypto.randomUUID()}.${extensionFor(contentType)}`;
   const uploadUrl = await signUpload(path);
   return json({ uploadUrl, path }, 200, origin);

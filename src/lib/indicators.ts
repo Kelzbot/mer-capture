@@ -12,7 +12,7 @@ import {
   parseResult,
   parseSex,
   parseViralLoad,
-  parseYesNo,
+  parsePregnant,
 } from './normalise';
 import type { Profile } from './aliases';
 
@@ -117,7 +117,7 @@ export function txCurr(row: Row, period: Period): IndicatorResult {
 
 const ML_PATTERNS: Array<[RegExp, string]> = [
   [/dead|died|death|deceased/i, 'Died'],
-  [/transfer|tout|to\b|transitioned/i, 'Transferred out'],
+  [/transfer|tout|^t\.?o\b|transitioned/i, 'Transferred out'],
   [/stop|discontinu|refus|opt.?out/i, 'Stopped'],
   [/lost|ltfu|iit|interrupt|defaul|missed/i, 'Interruption in treatment'],
 ];
@@ -232,6 +232,9 @@ export function tbStatN(row: Row, period: Period): IndicatorResult {
   }
   const screen = parseMissing(row.tb_screen_result);
   if (!screen) return result('TB_STAT_N', 'not_met', 'no TB screen result documented', fields);
+  if (/\bnot\s*(done|screened)\b|^no$/i.test(screen)) {
+    return result('TB_STAT_N', 'not_met', `TB screen recorded as "${screen}"`, fields);
+  }
   return result('TB_STAT_N', 'met', `TB screen documented as "${screen}"`, fields);
 }
 
@@ -245,7 +248,7 @@ export function pmtctArt(row: Row, period: Period): IndicatorResult {
     return result('PMTCT_ART', 'insufficient', 'pregnancy_status missing', fields);
   }
 
-  const pregnant = parseYesNo(rawPreg) ?? (/pregnan|anc|gravid/i.test(rawPreg) && !/not|non/i.test(rawPreg) ? true : null);
+  const pregnant = parsePregnant(rawPreg);
   if (pregnant === null) {
     return result('PMTCT_ART', 'insufficient', `pregnancy_status "${rawPreg}" not interpretable`, fields);
   }

@@ -9,6 +9,7 @@ import {
   parseResult,
   parseSex,
   parseViralLoad,
+  parsePregnant,
   parseYesNo,
   ageFromDob,
   monthsBetween,
@@ -80,7 +81,7 @@ function adultFlags(row: Row, id: string, facility: string, period: Period): DQF
 
   const sex = parseSex(row.sex);
   const pregRaw = parseMissing(row.pregnancy_status);
-  const pregnant = pregRaw ? (parseYesNo(pregRaw) ?? (/pregnan|anc|gravid/i.test(pregRaw) && !/not|non/i.test(pregRaw))) : null;
+  const pregnant = parsePregnant(pregRaw);
   if (sex === 'M' && pregnant === true) {
     push('critical', 'pregnancy_on_male', `pregnancy recorded as "${pregRaw}" on a male record`);
   }
@@ -120,7 +121,7 @@ function adultFlags(row: Row, id: string, facility: string, period: Period): DQF
   }
 
   const statusRaw = parseMissing(row.current_status);
-  const activeStatus = statusRaw ? /active|current|on art|alive/i.test(statusRaw) : false;
+  const activeStatus = statusRaw ? /\b(active|current|on art|alive)\b/i.test(statusRaw) : false;
   if (activeStatus && nextPickup && addDays(nextPickup, 28).getTime() < period.end.getTime()) {
     const late = daysBetween(nextPickup, period.end);
     push('warning', 'active_but_overdue', `status "${statusRaw}" but next pickup ${fmtDate(nextPickup)} is ${late} days before period end`);

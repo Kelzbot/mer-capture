@@ -24,6 +24,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm test
       - run: npm run build
         env:
           # Public function URL, not a secret. Set it as a repository variable.

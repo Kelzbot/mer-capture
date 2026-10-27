@@ -59,13 +59,16 @@ const CONSULTATION_RULES = `
    - Speech recognition corrupts drug names, doses and numbers badly. If a medication name or a dose is not clearly recoverable from the transcript, OMIT it. Do not repair it to the drug you think was meant, and never guess a dose. A missing dose is safe; a wrong one is not.
    - Negation survives transcription errors poorly. If you cannot tell whether a symptom was affirmed or denied, omit it rather than choosing.`;
 
-export function buildPrompt(redacted: string, kind: SourceKind = 'note'): string {
-  return `You are a clinical data extraction tool for Nigerian HIV programme records. You read one clinic note and return structured JSON.
+export function buildPrompt(redacted: string, kind: SourceKind = 'note', forced?: Profile): string {
+  const choice = forced
+    ? `The clinician has set this note's profile to ${forced}. Use that profile.`
+    : 'Decide which single profile this note belongs to. Use clinical unless the note is plainly an HIV treatment or infant HIV testing record.';
+  return `You are a clinical data extraction tool for Nigerian clinic records. You read one clinic note and return structured JSON.
 
-PROFILES — decide which single profile this note belongs to:
+PROFILES — ${choice}
+  clinical — a general outpatient consultation note, any presenting complaint
   adult_art — an adolescent or adult on antiretroviral treatment
   eid — early infant diagnosis: an infant HIV DNA PCR / DBS record
-  clinical — a general outpatient consultation note, any presenting complaint, not HIV-programme specific
 
 FIELD NAMES for adult_art (use these exact keys):
 ${fieldCatalogue(ADULT_ALIASES)}
@@ -223,12 +226,13 @@ export async function extractNote(
   provider: Provider,
   signal?: AbortSignal,
   kind: SourceKind = 'note',
+  forced?: Profile,
 ): Promise<ExtractionResult> {
   if (!text.trim()) throw new Error('The note is empty');
   if (!apiKey.trim()) throw new Error('No API key entered');
 
   const { redacted, map, entries } = deidentify(text);
-  const prompt = buildPrompt(redacted, kind);
+  const prompt = buildPrompt(redacted, kind, forced);
 
   const raw =
     provider === 'anthropic'
@@ -247,7 +251,7 @@ export async function extractNote(
     entries,
   };
 
-  return parseExtraction(raw, text, map, transmitted);
+  return parseExtraction(raw, text, map, transmitted, forced);
 }
 
 export function parseExtraction(
@@ -255,6 +259,7 @@ export function parseExtraction(
   originalText: string,
   map: RedactionMap,
   transmitted: Transmitted,
+  forced?: Profile,
 ): ExtractionResult {
   const cleaned = stripFences(raw);
 
@@ -280,7 +285,7 @@ export function parseExtraction(
   const eidKeys = new Set(Object.keys(EID_ALIASES));
   const clinicalKeys = new Set(Object.keys(CLINICAL_ALIASES));
 
-  const declared = body.profile;
+  const declared = forced ?? body.profile;
   const isProfile = declared === 'eid' || declared === 'adult_art' || declared === 'clinical';
 
   let profile: Profile = isProfile ? declared : 'adult_art';
