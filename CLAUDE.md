@@ -2,7 +2,7 @@
 
 ## Where we are (27 Oct 2026)
 
-- Branch `audit-fixes` (not committed yet) holds the fixes from the ponytail audit:
+- Merged to `main` and live (commit f4f8b10, deployed 27 Oct 2026): the fixes from the ponytail audit:
   TX_ML "lost to follow-up" misclassified as transfer, phone numbers leaking past
   de-identification, stale consultation audio never deleted from Storage (sweep in
   `handleSign`), VL 999/9999 dropped as missing, "Not pregnant" read as unknown
@@ -11,12 +11,12 @@
   `eng.traineddata` removed, batch view memo.
 - `src/lib/smoke.ts` (109 checks) now runs inside `npm test` via `smoke.test.ts`, and
   the deploy workflow runs `npm test` before building.
-- The Supabase function change is not deployed and the Storage list call in
+- The Supabase function change is NOT deployed (GitHub Pages only ships the frontend; needs `supabase functions deploy transcribe`) and the Storage list call in
   `sweepStaleAudio` was not tested against a live bucket.
 - Orphaned AssemblyAI transcripts (tab closed mid-job) still can't be cleaned up:
   the proxy never learns their IDs.
 
-- UI simplified (same branch, uncommitted): the app opens on one Consultation screen
+- UI simplified (live): the app opens on one Consultation screen
   (`NoteExtract`). Batch notes and the HIV dataset workbench sit behind a
   "Programme tools…" menu with a "Back to consultation" button; the reporting period
   only shows in the dataset tool.
@@ -31,9 +31,8 @@
 - Waiting on Kelvin: which extra consultation types he meant by "Other" (e.g.
   antenatal, chronic follow-up). Each is a field list in `aliases.ts` plus a
   `SECTIONS` entry in `NoteExtract.tsx` and a profile in the prompt.
-- Not yet checked in a browser (Chrome stopped responding); run `npm run dev` and click through.
+- Not yet clicked through in a browser (Chrome stopped responding during the session).
 - README still describes the old three-mode layout and HIV-first framing.
-- Commit when Kelvin approves.
 
 ## Commands
 
