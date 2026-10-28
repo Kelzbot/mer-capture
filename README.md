@@ -173,17 +173,19 @@ Alongside the flags, `computeDocQuality` reports: records extracted, the share o
 
 The harness also returns a per-record breakdown ranked worst-first, and the UI renders extracted against reference side by side for the worst cases so failures are inspectable rather than just counted. Everything exports as one CSV.
 
-**Results: not yet run against the organiser dataset.** The harness is implemented, and its metric functions were checked during the build against hand-built extraction/reference pairs (exact match, token F1, ICD-10 exact and category, hallucination, omission, negation inversion, split reproducibility) — that check was a throwaway script and is not committed. Producing the numbers below requires an API key and a batch run over the dataset. They are deliberately left blank rather than estimated.
+**Results: not yet run against the organiser dataset.** The numbers below are from a **20-note synthetic set** (`eval_notes_synthetic.csv`, general outpatient notes written for this check, with hand-written reference fields), run through `gemini-2.5-flash` on 28 October 2026 with all 20 records scored. They show the harness working and give a first read on behaviour; they are not a claim about the organiser dataset.
 
-| Metric | Result |
+| Metric | Result (synthetic, n=20) |
 |---|---|
-| Held-out set size | _fill from eval run_ |
-| Overall exact match | _fill_ |
-| Overall token F1 | _fill_ |
-| ICD-10 exact | _fill_ |
-| ICD-10 category | _fill_ |
-| Hallucination rate | _fill_ |
-| Negation errors | _fill_ |
+| Held-out set size | 20 (100%) |
+| Overall exact match | 61.8% macro / 57.1% micro over 182 pairs |
+| Overall token F1 | 0.847 |
+| ICD-10 exact | 75.0% (15/20) |
+| ICD-10 category | 100.0% (20/20) |
+| Hallucination rate | 2.6% (1 field) |
+| Negation errors | 0 |
+
+Where exact match was lost: section boundaries (whether "crying at night, fever" belongs to the chief complaint or the history), the medications/plan split, and the SOAP note (0% exact, 0.78 F1, since it is a re-layout). Final diagnosis was 100% exact. The five ICD-10 misses were all fourth-character specificity (H66.0 vs H66.9), none a wrong category.
 
 The same values fill the deck: `pitch/index.html` reads them from the query string, e.g. `pitch/index.html?TEST_SET_SIZE=40&EXACT_MATCH_PCT=86.4%25&FUZZY_F1=0.79`. Anything not supplied stays visibly marked as unfilled.
 

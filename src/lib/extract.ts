@@ -102,7 +102,7 @@ RULES
    - hpi, pmh, exam, investigations: the note's own statements for that section. Preserve every negation exactly as written — "no fever", "denies cough", "chest clear" must stay negative. Reversing a negation is the most serious error you can make.
    - differential: only diagnoses the note itself considers or rules out. If the note lists none, omit the field.
    - final_diagnosis: only if the note states a diagnosis or impression. Never infer one from symptoms.
-   - icd10: the standard ICD-10 code for the diagnosis the note states, formatted like J45.9 or A09. This is a coding of a stated diagnosis, not a new clinical fact — so omit it entirely when final_diagnosis is absent or too vague to code. Return the code alone, no description.
+   - icd10: the standard ICD-10 code for the diagnosis the note states, formatted like J45.9 or A09. This is a coding of a stated diagnosis, not a new clinical fact — so omit it entirely when final_diagnosis is absent or too vague to code. Return the code alone, no description. If the note states more than one diagnosis, return one code per diagnosis in the same order, comma-separated (e.g. "I10, E11.9").
    - medications, treatment_plan: only drugs and actions the note records. Never add a standard regimen.
    - soap_note: the note reorganised into S:, O:, A:, P: on four lines, using only content already in the note. Leave a heading empty rather than filling it.
    For every clinical field, source_span must still be a verbatim substring of the note.
@@ -179,7 +179,8 @@ async function callGemini(
     headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0, responseMimeType: 'application/json' },
+      // Extraction is copy-out, not reasoning; the model's thinking phase roughly tripled latency.
+      generationConfig: { temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
     }),
     signal,
   });

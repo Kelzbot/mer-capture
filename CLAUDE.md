@@ -29,13 +29,24 @@
   `extractNote(..., forced)` → prompt + `parseExtraction`. General notes get
   `docQuality.ts` flags instead of HIV indicators. Two general sample notes added.
 - Kelvin chose: document the clinician's diagnosis only (no AI differentials).
+- Demo: virtual meeting with Prof. Abimiku (IHVN ED, was a hackathon judge, asked for voice in V2),
+  Mon 2 Nov 2026, 2:30pm. Advice given: lead with the HIV dataset tool, then one consultation end to end,
+  use a pre-recorded audio file rather than recording live over the call, have a screen recording as backup.
 
 ## Next step
 
 - Waiting on Kelvin: run `npx supabase login` with the account that owns the project, then
   `npx supabase functions deploy transcribe --project-ref cmistooufkxzxzmhsuds --no-verify-jwt --use-api`
   (keep `--no-verify-jwt`: the app calls the proxy without a Supabase JWT).
-- ANC/NCD extraction not yet run against a live model; check the two new samples.
+- ANC and NCD samples run through Gemini on the live site (28 Oct): both auto-detected, 23 and 17
+  fields, flags sensible. Extraction took ~25 s with Gemini thinking on; `thinkingBudget: 0` added in
+  `extract.ts`, speed-up not yet measured on the live site.
+- Evaluation run (28 Oct) on a 20-note synthetic set I wrote (`eval_notes_synthetic.csv`, in Kelvin's
+  Downloads and the session scratchpad; not in the repo): exact 61.8%, F1 0.847, ICD-10 exact 75% /
+  category 100%, hallucination 2.6%, negation 0. Numbers are in the README. The real Track 2 dataset
+  was not found on this machine; ask Kelvin where it is.
+- Prompt now asks for one ICD-10 code per diagnosis, comma-separated (a two-diagnosis NCD note returned
+  no code and fired a critical flag). Fonts: IBM Plex Sans/Mono via Google Fonts; tab title "MER Capture".
 - Possible next type: under-5 / immunisation clinic. Adding a type = a field list in `aliases.ts`,
   a `SECTIONS` + `PROFILE_LABELS` entry in `NoteExtract.tsx`, a line in the prompt in `extract.ts`.
 - Live site clicked through via Chrome on 28 Oct (text checks; screenshots time out): TYPE options,
