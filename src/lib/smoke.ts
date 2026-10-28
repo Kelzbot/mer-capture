@@ -15,6 +15,7 @@ import { autoMap } from './mapper';
 import { computeIndicators, pmtctArt, tbStatN, txCurr, txMl, txPvlsN, type Period } from './indicators';
 import { runDQ } from './dq';
 import { deidentify } from './deidentify';
+import { parseExtraction, type Transmitted } from './extract';
 
 let failures = 0;
 let checks = 0;
@@ -228,6 +229,19 @@ check('EID 2-month indicator', eidReport.summaries.find((s) => s.code === 'PMTCT
 check('HEI positive counted', eidReport.summaries.find((s) => s.code === 'PMTCT_HEI_POS')?.numerator, 1);
 check('EID transport TAT median', eidReport.tatMedians.transport, 4);
 check('EID total TAT median', eidReport.tatMedians.total, 12);
+
+const tx: Transmitted = { provider: 'gemini', model: '', endpoint: '', prompt: '', redacted: '', entries: [] };
+const ancNote = 'GA 20 weeks. BP 118/76. HbA1c 6%';
+const ancRaw = JSON.stringify({ profile: 'anc', fields: {
+  gestational_age: { value: '20 weeks', confidence: 0.9, source_span: 'GA 20 weeks' },
+  hba1c: { value: '6%', confidence: 0.9, source_span: 'HbA1c 6%' },
+} });
+const anc = parseExtraction(ancRaw, ancNote, {}, tx);
+check('ANC profile accepted', anc.profile, 'anc');
+check('ANC field kept', anc.fields.gestational_age?.value, '20 weeks');
+check('NCD-only field dropped from ANC', anc.fields.hba1c, undefined);
+check('forced NCD profile wins', parseExtraction(ancRaw, ancNote, {}, tx, 'ncd').fields.hba1c?.value, '6%');
+check('unknown profile falls back', parseExtraction(JSON.stringify({ profile: 'toString', fields: {} }), '', {}, tx).profile, 'adult_art');
 
 console.log(`${checks - failures}/${checks} checks passed`);
 // Throw rather than process.exit, so the vitest wrapper (smoke.test.ts) fails too.

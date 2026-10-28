@@ -34,13 +34,33 @@ const SECTIONS: Record<Profile, Array<{ title: string; fields: string[] }>> = {
     { title: 'Plan', fields: ['medications', 'treatment_plan'] },
     { title: 'Structured note', fields: ['soap_note'] },
   ],
+  anc: [
+    { title: 'Pregnancy', fields: ['lmp', 'edd', 'gestational_age', 'gravida_parity', 'anc_visit_number'] },
+    { title: 'Subjective', fields: ['chief_complaint', 'hpi', 'pmh'] },
+    { title: 'Objective', fields: ['blood_pressure', 'weight', 'fundal_height', 'fetal_heart_rate', 'exam'] },
+    { title: 'Tests', fields: ['haemoglobin', 'urinalysis', 'hiv_status', 'investigations'] },
+    { title: 'Assessment', fields: ['differential', 'final_diagnosis', 'icd10'] },
+    { title: 'Plan', fields: ['iptp_sp', 'medications', 'treatment_plan', 'next_visit_date'] },
+    { title: 'Structured note', fields: ['soap_note'] },
+  ],
+  ncd: [
+    { title: 'Subjective', fields: ['conditions', 'chief_complaint', 'hpi', 'pmh', 'adherence'] },
+    { title: 'Objective', fields: ['blood_pressure', 'weight', 'bmi', 'blood_glucose', 'hba1c', 'exam', 'investigations'] },
+    { title: 'Assessment', fields: ['complications', 'differential', 'final_diagnosis', 'icd10'] },
+    { title: 'Plan', fields: ['medications', 'treatment_plan', 'next_visit_date'] },
+    { title: 'Structured note', fields: ['soap_note'] },
+  ],
 };
 
 const PROFILE_LABELS: Record<Profile, string> = {
   clinical: 'General outpatient',
+  anc: 'Antenatal (ANC)',
+  ncd: 'Chronic follow-up (HTN, DM…)',
   adult_art: 'HIV — adult ART',
   eid: 'HIV — infant EID',
 };
+
+const isHiv = (p: Profile) => p === 'adult_art' || p === 'eid';
 
 const SAMPLE_NOTES: Array<{ label: string; text: string }> = [
   {
@@ -66,6 +86,30 @@ O/E: temp 38.9C, RR 48/min, mild subcostal recession. Crackles R lower zone. SpO
 Dx: community-acquired pneumonia.
 Rx: amoxicillin 40mg/kg/dose bd x 5 days. Paracetamol 15mg/kg prn.
 Counselled mother on danger signs. Review in 48 hours.`,
+  },
+  {
+    label: 'Antenatal — booking visit at 20 weeks',
+    text: `ANC Clinic — Booking Visit
+Name: Mrs Ngozi Eze    ANC No: 0412/ANC/26
+28yr G2P1, LMP 10/06/2026, EDD 17/03/2027, GA 20 weeks.
+C/O mild pedal swelling in the evenings. No headache, no blurred vision, no vaginal bleeding.
+O/E: BP 118/76, Wt 68kg. SFH 20cm, FHR 144 bpm. Mild pitting oedema both ankles.
+PCV 31%. Urinalysis: protein nil, glucose nil. RVS negative.
+Impression: normal pregnancy at 20 weeks, mild anaemia.
+Plan: IPTp-SP 1st dose given today, ferrous sulphate 200mg daily, folic acid 5mg daily.
+Next visit in 4 weeks.`,
+  },
+  {
+    label: 'Chronic — hypertension and diabetes review',
+    text: `Medical Outpatient — Follow-up
+Name: Alhaji Musa Ibrahim    Hosp No: 0987/MOPD/24
+61yr M, known hypertensive x 8 yrs and type 2 diabetic x 5 yrs.
+Says he missed his drugs for about 2 weeks last month (ran out). Occasional headache. No chest pain, no leg swelling.
+O/E: BP 158/96, Wt 84kg, BMI 29. Feet: no ulcers, sensation intact.
+FBS 9.8 mmol/L. HbA1c 8.1%.
+Assessment: poorly controlled hypertension and type 2 diabetes, poor adherence.
+Plan: continue amlodipine 10mg daily, add lisinopril 10mg daily, continue metformin 1g bd.
+Adherence counselling done. Repeat FBS and E/U/Cr. Review in 4 weeks.`,
   },
   {
     label: 'Adult ART — routine follow-up',
@@ -179,7 +223,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
     if (!result || !row) return null;
     // Programme indicators only mean something for HIV records; a general consultation
     // gets the documentation-quality rules instead.
-    if (result.profile === 'clinical') {
+    if (!isHiv(result.profile)) {
       return {
         results: {},
         flags: computeDocQuality([{ recordId: 'This note', fields: row as DocFields }]).flags,
@@ -423,8 +467,8 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       </div>
 
       {result && analysis && (
-        <div className={`grid gap-6 ${result.profile === 'clinical' ? '' : 'lg:grid-cols-2'}`}>
-          {result.profile !== 'clinical' && (
+        <div className={`grid gap-6 ${isHiv(result.profile) ? 'lg:grid-cols-2' : ''}`}>
+          {isHiv(result.profile) && (
           <section className="rounded border border-slate-300 bg-white p-6">
             <h3 className="text-sm font-semibold text-slate-800">Indicators for this record</h3>
             <p className="mt-1 font-mono text-[10px] text-slate-500">

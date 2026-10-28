@@ -1,4 +1,4 @@
-export type Profile = 'adult_art' | 'eid' | 'clinical';
+export type Profile = 'adult_art' | 'eid' | 'clinical' | 'anc' | 'ncd';
 
 export const ADULT_ALIASES: Record<string, string[]> = {
   patient_id: ['Patient ID', 'Unique ID', 'UID', 'Hospital Number', 'Hosp No', 'Hosp Number', 'File Number', 'Folder Number', 'PEPID', 'PEP ID', 'Client ID', 'ART Number', 'Patient Code'],
@@ -62,6 +62,39 @@ export const CLINICAL_ALIASES: Record<string, string[]> = {
   soap_note: ['SOAP Note', 'SOAP', 'Structured Note'],
 };
 
+// Antenatal and chronic-care visits are general consultations plus the measurements
+// those clinics always record.
+export const ANC_ALIASES: Record<string, string[]> = {
+  ...CLINICAL_ALIASES,
+  lmp: ['LMP', 'Last Menstrual Period'],
+  edd: ['EDD', 'Expected Date of Delivery', 'Estimated Due Date'],
+  gestational_age: ['Gestational Age', 'GA', 'Weeks Gestation', 'EGA'],
+  gravida_parity: ['Gravida/Parity', 'G/P', 'Parity', 'Obstetric History'],
+  anc_visit_number: ['ANC Visit Number', 'ANC Contact', 'Booking', 'Visit Number'],
+  blood_pressure: ['Blood Pressure', 'BP'],
+  weight: ['Weight', 'Weight (kg)'],
+  fundal_height: ['Fundal Height', 'SFH', 'Symphysio-Fundal Height'],
+  fetal_heart_rate: ['Fetal Heart Rate', 'FHR', 'FHT', 'Fetal Heart Tones'],
+  haemoglobin: ['Haemoglobin', 'Hb', 'PCV', 'Packed Cell Volume'],
+  urinalysis: ['Urinalysis', 'Urine Protein', 'Urine Dipstick'],
+  hiv_status: ['HIV Status', 'HIV Test Result', 'RVS', 'Retroviral Screening'],
+  iptp_sp: ['IPTp', 'IPTp-SP', 'SP Dose', 'Fansidar'],
+  next_visit_date: ['Next Visit', 'Next Appointment', 'Return Date', 'TCA'],
+};
+
+export const NCD_ALIASES: Record<string, string[]> = {
+  ...CLINICAL_ALIASES,
+  conditions: ['Chronic Conditions', 'Known Conditions', 'Comorbidities'],
+  blood_pressure: ['Blood Pressure', 'BP'],
+  weight: ['Weight', 'Weight (kg)'],
+  bmi: ['BMI', 'Body Mass Index'],
+  blood_glucose: ['Blood Glucose', 'FBS', 'RBS', 'FBG', 'Fasting Blood Sugar', 'Random Blood Sugar'],
+  hba1c: ['HbA1c', 'A1c', 'Glycated Haemoglobin'],
+  adherence: ['Adherence', 'Drug Compliance', 'Compliance'],
+  complications: ['Complications', 'Target Organ Damage'],
+  next_visit_date: ['Next Visit', 'Next Appointment', 'Return Date', 'TCA'],
+};
+
 export const ALIASES: Record<string, string[]> = (() => {
   const merged: Record<string, string[]> = {};
   for (const [field, list] of Object.entries(ADULT_ALIASES)) merged[field] = [...list];
@@ -75,6 +108,8 @@ export const PROFILE_ALIASES: Record<Profile, Record<string, string[]>> = {
   adult_art: ADULT_ALIASES,
   eid: EID_ALIASES,
   clinical: CLINICAL_ALIASES,
+  anc: ANC_ALIASES,
+  ncd: NCD_ALIASES,
 };
 
 export const EID_SIGNAL_FIELDS = ['date_specimen_drawn', 'test_result', 'age_months'];
@@ -131,6 +166,25 @@ export const FIELD_LABELS: Record<string, string> = {
   medications: 'Medications',
   treatment_plan: 'Treatment plan',
   soap_note: 'SOAP note',
+  lmp: 'LMP',
+  edd: 'EDD',
+  gestational_age: 'Gestational age',
+  gravida_parity: 'Gravida / parity',
+  anc_visit_number: 'ANC visit number',
+  blood_pressure: 'Blood pressure',
+  fundal_height: 'Fundal height',
+  fetal_heart_rate: 'Fetal heart rate',
+  haemoglobin: 'Haemoglobin / PCV',
+  urinalysis: 'Urinalysis',
+  hiv_status: 'HIV status',
+  iptp_sp: 'IPTp-SP',
+  next_visit_date: 'Next visit',
+  conditions: 'Chronic conditions',
+  bmi: 'BMI',
+  blood_glucose: 'Blood glucose',
+  hba1c: 'HbA1c',
+  adherence: 'Adherence',
+  complications: 'Complications',
 };
 
 export function normaliseHeader(h: string): string {

@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { ADULT_ALIASES, CLINICAL_ALIASES, EID_ALIASES, FIELD_LABELS, type Profile } from './aliases';
+import { ADULT_ALIASES, ANC_ALIASES, CLINICAL_ALIASES, EID_ALIASES, FIELD_LABELS, NCD_ALIASES, type Profile } from './aliases';
 import { deidentify, rehydrate, type RedactionEntry, type RedactionMap } from './deidentify';
 import type { Row } from './indicators';
 
@@ -62,11 +62,13 @@ const CONSULTATION_RULES = `
 export function buildPrompt(redacted: string, kind: SourceKind = 'note', forced?: Profile): string {
   const choice = forced
     ? `The clinician has set this note's profile to ${forced}. Use that profile.`
-    : 'Decide which single profile this note belongs to. Use clinical unless the note is plainly an HIV treatment or infant HIV testing record.';
+    : 'Decide which single profile this note belongs to. Use clinical unless the note is plainly an antenatal visit (anc), a chronic-disease follow-up (ncd), an HIV treatment record (adult_art) or an infant HIV testing record (eid).';
   return `You are a clinical data extraction tool for Nigerian clinic records. You read one clinic note and return structured JSON.
 
 PROFILES — ${choice}
   clinical — a general outpatient consultation note, any presenting complaint
+  anc — an antenatal clinic visit for a pregnant woman
+  ncd — a follow-up visit for a chronic condition such as hypertension, diabetes, asthma or sickle cell disease
   adult_art — an adolescent or adult on antiretroviral treatment
   eid — early infant diagnosis: an infant HIV DNA PCR / DBS record
 
@@ -79,17 +81,23 @@ ${fieldCatalogue(EID_ALIASES)}
 FIELD NAMES for clinical (use these exact keys):
 ${fieldCatalogue(CLINICAL_ALIASES)}
 
+FIELD NAMES for anc (use these exact keys):
+${fieldCatalogue(ANC_ALIASES)}
+
+FIELD NAMES for ncd (use these exact keys):
+${fieldCatalogue(NCD_ALIASES)}
+
 RULES
 1. Return JSON and nothing else. No prose, no explanation, no markdown code fences.
 2. Exact output shape:
 {"profile":"adult_art","fields":{"<field_name>":{"value":"<verbatim value>","confidence":0.0,"source_span":"<verbatim quote from the note>"}}}
 3. Include a field ONLY if this note actually states it. Absence is a valid and expected result — omit the field entirely rather than guessing. Never infer, never invent, never fill in a typical or default clinical value. A note that states almost nothing must return almost no fields.
-4. For the adult_art and eid profiles, "value" must be copied verbatim from the note. Do NOT reformat, normalise or convert anything — dates such as "14-Aug-25" or "03/04/2026", results such as "TND", "<20" or "1,450", and units must be returned exactly as they appear. Downstream software does all parsing.
+4. For the adult_art and eid profiles, and for every measurement, date and result in anc and ncd (blood pressure, weight, gestational age, glucose and so on), "value" must be copied verbatim from the note. Do NOT reformat, normalise or convert anything — dates such as "14-Aug-25" or "03/04/2026", results such as "TND", "<20" or "1,450", and units must be returned exactly as they appear. Downstream software does all parsing.
 5. "source_span" must be a verbatim substring of the note, at most 12 words, containing the evidence for that value.
 6. "confidence" is a number from 0 to 1 describing how clearly the note states this value.
 7. This note has been de-identified. Tokens of the form [NAME_1], [PHONE_2], [ID_3] are placeholders for removed identifiers. Never treat them as clinical data, never return one as a value, and never comment on them.
 8. Use only field names from the list for the profile you selected.
-9. CLINICAL PROFILE ONLY. Sectioning is allowed; invention is not. Each section value is the note's own wording for that section, lightly joined into a clause — never new clinical content, never a typical presentation, never a finding the note does not state. Specifically:
+9. CLINICAL, ANC AND NCD PROFILES. Sectioning is allowed; invention is not. Each section value is the note's own wording for that section, lightly joined into a clause — never new clinical content, never a typical presentation, never a finding the note does not state. Specifically:
    - chief_complaint: the stated reason for the visit, in the note's words, one short line.
    - hpi, pmh, exam, investigations: the note's own statements for that section. Preserve every negation exactly as written — "no fever", "denies cough", "chest clear" must stay negative. Reversing a negation is the most serious error you can make.
    - differential: only diagnoses the note itself considers or rules out. If the note lists none, omit the field.
@@ -284,11 +292,18 @@ export function parseExtraction(
   const adultKeys = new Set(Object.keys(ADULT_ALIASES));
   const eidKeys = new Set(Object.keys(EID_ALIASES));
   const clinicalKeys = new Set(Object.keys(CLINICAL_ALIASES));
+  const keysByProfile: Record<Profile, Set<string>> = {
+    adult_art: adultKeys,
+    eid: eidKeys,
+    clinical: clinicalKeys,
+    anc: new Set(Object.keys(ANC_ALIASES)),
+    ncd: new Set(Object.keys(NCD_ALIASES)),
+  };
 
   const declared = forced ?? body.profile;
-  const isProfile = declared === 'eid' || declared === 'adult_art' || declared === 'clinical';
+  const isProfile = typeof declared === 'string' && Object.hasOwn(keysByProfile, declared);
 
-  let profile: Profile = isProfile ? declared : 'adult_art';
+  let profile: Profile = isProfile ? (declared as Profile) : 'adult_art';
   if (!isProfile) {
     const returned = Object.keys(rawFields);
     const clinicalHits = returned.filter((k) => clinicalKeys.has(k)).length;
@@ -299,11 +314,6 @@ export function parseExtraction(
     warnings.push(`Model did not return a valid profile; inferred "${profile}" from the field names`);
   }
 
-  const keysByProfile: Record<Profile, Set<string>> = {
-    adult_art: adultKeys,
-    eid: eidKeys,
-    clinical: clinicalKeys,
-  };
   const allowed = keysByProfile[profile];
   const fields: Record<string, FieldExtraction> = {};
 
