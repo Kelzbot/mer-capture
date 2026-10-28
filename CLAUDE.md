@@ -38,7 +38,11 @@
 - ANC/NCD extraction not yet run against a live model; check the two new samples.
 - Possible next type: under-5 / immunisation clinic. Adding a type = a field list in `aliases.ts`,
   a `SECTIONS` + `PROFILE_LABELS` entry in `NoteExtract.tsx`, a line in the prompt in `extract.ts`.
-- Not yet clicked through in a browser (Chrome stopped responding during the session).
+- Live site clicked through via Chrome on 28 Oct (text checks; screenshots time out): TYPE options,
+  ANC/NCD samples, sample-form OCR, Programme tools → dataset → indicators (TX_ML splits interruption
+  vs transfer), Back to consultation, no console errors. Fixed then: the note box was lost on a trip to a
+  tool (`NoteExtract` is now hidden, not unmounted, in `App.tsx`). Extraction itself not run (needs Kelvin's key).
+- Demo data checked: sample CSVs use fictional facilities; no Abuja names in repo text. Submission PDFs not checked.
 - README rewritten for the one-screen layout and the consultation types (28 Oct).
 
 ## Commands

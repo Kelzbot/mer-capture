@@ -185,7 +185,10 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-7xl px-6 py-6">
-        {mode === 'note' && <NoteExtract apiKey={apiKey} provider={provider} period={period} />}
+        {/* Hidden, not unmounted, so a note in progress survives a trip to the programme tools. */}
+        <div hidden={mode !== 'note'}>
+          <NoteExtract apiKey={apiKey} provider={provider} period={period} />
+        </div>
         {mode === 'batch' && <BatchNotes apiKey={apiKey} provider={provider} period={period} />}
 
         {mode === 'dataset' && step === 0 && (
