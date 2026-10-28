@@ -314,7 +314,7 @@ export default function Capture({ onText, disabled }: Props) {
   return (
     <div className="mt-3 rounded border border-slate-300 bg-slate-50 p-3">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+        <span className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
           Capture instead of typing
         </span>
 
@@ -324,7 +324,7 @@ export default function Capture({ onText, disabled }: Props) {
             type="button"
             onClick={() => setKind(k)}
             disabled={working || recording}
-            className={`rounded border px-2.5 py-1 font-mono text-[10px] disabled:opacity-40 ${
+            className={`rounded border px-2.5 py-1 font-mono text-[11px] disabled:opacity-40 ${
               kind === k
                 ? 'border-teal-500 bg-teal-50 text-teal-800'
                 : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
@@ -335,7 +335,7 @@ export default function Capture({ onText, disabled }: Props) {
         ))}
       </div>
 
-      <p className="mt-2 font-mono text-[10px] leading-4 text-slate-600">
+      <p className="mt-2 font-mono text-[11px] leading-4 text-slate-600">
         {kind === 'consultation'
           ? 'Records the conversation between clinician and patient. The note is derived from what was actually said — nothing the clinician did not say aloud is filled in.'
           : 'You dictate a summary yourself. Cleaner input, fewer errors, but it happens after the consultation rather than during it.'}
@@ -344,14 +344,14 @@ export default function Capture({ onText, disabled }: Props) {
       {canRecord && (
         <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+            <span className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
               Transcription
             </span>
             <select
               value={engine}
               onChange={(e) => setEngine(e.target.value as ProviderId)}
               disabled={working || recording}
-              className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+              className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-800 disabled:opacity-40"
             >
               <option value="assemblyai">
                 Cloud — medical{CLOUD_URL ? '' : ' (not configured in this build)'}
@@ -365,7 +365,7 @@ export default function Capture({ onText, disabled }: Props) {
                   value={choice}
                   onChange={(e) => setChoice(e.target.value as WhisperChoice)}
                   disabled={working || recording}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-800 disabled:opacity-40"
                 >
                   {(Object.keys(WHISPER_MODELS) as WhisperChoice[]).map((key) => (
                     <option key={key} value={key}>
@@ -378,7 +378,7 @@ export default function Capture({ onText, disabled }: Props) {
                     value={language}
                     onChange={(e) => setLanguage(e.target.value)}
                     disabled={working || recording}
-                    className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800 disabled:opacity-40"
+                    className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-800 disabled:opacity-40"
                   >
                     {LANGUAGES.map((l) => (
                       <option key={l.code} value={l.code}>
@@ -393,7 +393,7 @@ export default function Capture({ onText, disabled }: Props) {
 
           {cloudSelected ? (
             demoKey && !editingKey ? (
-              <p className="font-mono text-[10px] text-slate-500">
+              <p className="font-mono text-[11px] text-slate-500">
                 Speaker labels and medical vocabulary. Passcode saved on this device ·{' '}
                 <button
                   type="button"
@@ -413,27 +413,27 @@ export default function Capture({ onText, disabled }: Props) {
                     if (e.key === 'Enter' && keyDraft.trim()) saveKey();
                   }}
                   placeholder="Transcription passcode"
-                  className="w-48 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-800"
+                  className="w-48 rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-800"
                 />
                 <button
                   type="button"
                   onClick={saveKey}
                   disabled={!keyDraft.trim()}
-                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[10px] text-slate-700 hover:border-teal-500 disabled:opacity-40"
+                  className="rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-700 hover:border-teal-500 disabled:opacity-40"
                 >
                   Save
                 </button>
-                <span className="font-mono text-[10px] text-slate-500">
+                <span className="font-mono text-[11px] text-slate-500">
                   Asked once, kept on this device.
                 </span>
               </div>
             )
           ) : (
-            <p className="font-mono text-[10px] text-slate-500">{model.note}</p>
+            <p className="font-mono text-[11px] text-slate-500">{model.note}</p>
           )}
 
           {showAudioDebug && (
-            <label className="flex items-center gap-2 font-mono text-[10px] text-slate-600">
+            <label className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
               <input
                 type="checkbox"
                 checked={raw}
@@ -454,7 +454,7 @@ export default function Capture({ onText, disabled }: Props) {
                 disabled={recording}
                 className="mt-0.5"
               />
-              <span className="font-mono text-[10px] leading-4 text-amber-900">
+              <span className="font-mono text-[11px] leading-4 text-amber-900">
                 {cloudSelected
                   ? 'The patient has been told this consultation will be recorded and sent to an external service to be transcribed, and has agreed.'
                   : 'The patient has been told this consultation will be recorded and has agreed.'}{' '}
@@ -471,7 +471,7 @@ export default function Capture({ onText, disabled }: Props) {
             <button
               type="button"
               onClick={recorder.stop}
-              className="flex items-center gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-1.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100"
+              className="flex items-center gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100"
             >
               <Square size={13} />
               Stop and transcribe
@@ -485,7 +485,7 @@ export default function Capture({ onText, disabled }: Props) {
               type="button"
               onClick={() => void recorder.start(raw)}
               disabled={working || disabled || recordBlocked || needsKey}
-              className="flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+              className="flex items-center gap-2 rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-40"
             >
               <Mic size={13} />
               {kind === 'consultation' ? 'Record consultation' : 'Dictate note'}
@@ -493,7 +493,7 @@ export default function Capture({ onText, disabled }: Props) {
           ))}
 
         <label
-          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
+          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
             working || disabled || recording || recordBlocked || needsKey
               ? 'pointer-events-none opacity-40'
               : ''
@@ -513,10 +513,10 @@ export default function Capture({ onText, disabled }: Props) {
           />
         </label>
 
-        <span className="mx-1 font-mono text-[10px] text-slate-400">or</span>
+        <span className="mx-1 font-mono text-[11px] text-slate-400">or</span>
 
         <label
-          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
+          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
             working || disabled ? 'pointer-events-none opacity-40' : ''
           }`}
         >
@@ -536,7 +536,7 @@ export default function Capture({ onText, disabled }: Props) {
         </label>
 
         <label
-          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
+          className={`flex cursor-pointer items-center gap-1.5 rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700 ${
             working || disabled ? 'pointer-events-none opacity-40' : ''
           }`}
         >
@@ -558,14 +558,14 @@ export default function Capture({ onText, disabled }: Props) {
           type="button"
           onClick={runSample}
           disabled={working || disabled}
-          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-[10px] text-slate-600 hover:border-teal-500 hover:text-teal-700 disabled:opacity-40"
+          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 font-mono text-[11px] text-slate-600 hover:border-teal-500 hover:text-teal-700 disabled:opacity-40"
         >
           try a sample form
         </button>
       </div>
 
       {recording && (
-        <p className={`mt-2 font-mono text-[10px] ${nearLimit ? 'text-rose-700' : 'text-slate-500'}`}>
+        <p className={`mt-2 font-mono text-[11px] ${nearLimit ? 'text-rose-700' : 'text-slate-500'}`}>
           {nearLimit
             ? `Recording stops automatically at ${clock(RECORDING_LIMIT_SECONDS)}.`
             : recorder.wakeLockHeld
@@ -575,18 +575,18 @@ export default function Capture({ onText, disabled }: Props) {
       )}
 
       {recordBlocked && !recording && (
-        <p className="mt-2 font-mono text-[10px] text-amber-700">
+        <p className="mt-2 font-mono text-[11px] text-amber-700">
           Confirm consent above before recording or uploading a consultation.
         </p>
       )}
 
       {needsKey && !recording && (
-        <p className="mt-2 font-mono text-[10px] text-amber-700">
+        <p className="mt-2 font-mono text-[11px] text-amber-700">
           Enter the transcription passcode above, or switch to Offline (basic).
         </p>
       )}
 
-      <p className="mt-2 font-mono text-[10px] leading-4 text-slate-500">
+      <p className="mt-2 font-mono text-[11px] leading-4 text-slate-500">
         {cloudSelected
           ? 'Audio is uploaded to a private, temporary store and transcribed by AssemblyAI, an external service. Both copies are deleted as soon as the transcript comes back. Photos are still read on this device.'
           : 'Everything here runs inside this browser. The audio and the photo never leave the device — only the recogniser files are downloaded, once, and cached.'}{' '}
@@ -595,7 +595,7 @@ export default function Capture({ onText, disabled }: Props) {
 
       {clip && !recording && (
         <div className="mt-3 rounded border border-slate-200 bg-white px-3 py-2">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
             {clip.origin === 'recording' ? 'Recorded audio' : 'Uploaded audio'}
             <span className="ml-2 normal-case tracking-normal text-slate-400">
               {(clip.blob.size / 1024 / 1024).toFixed(1)} MB · {clip.mime}
@@ -607,7 +607,7 @@ export default function Capture({ onText, disabled }: Props) {
             <a
               href={clip.url}
               download={clip.fileName}
-              className="flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-[11px] font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700"
+              className="flex items-center gap-1.5 rounded border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:border-teal-500 hover:text-teal-700"
             >
               <Download size={13} />
               Download audio
@@ -617,7 +617,7 @@ export default function Capture({ onText, disabled }: Props) {
       )}
 
       {fallbackNotice && (
-        <p className="mt-3 flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 font-mono text-[11px] leading-4 text-amber-900">
+        <p className="mt-3 flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 font-mono text-xs leading-4 text-amber-900">
           <TriangleAlert size={13} className="mt-0.5 shrink-0" />
           <span>
             Cloud transcription unavailable — {fallbackNotice}. Transcribed with Offline (basic) on
@@ -627,7 +627,7 @@ export default function Capture({ onText, disabled }: Props) {
       )}
 
       {ocrBusy && (
-        <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-700">
+        <div className="mt-3 flex items-center gap-2 font-mono text-xs text-slate-700">
           <Loader size={13} className="animate-spin text-teal-600" />
           <span>
             Reading the image{ocrProgress?.stage ? ` — ${ocrProgress.stage}` : ''}
@@ -639,7 +639,7 @@ export default function Capture({ onText, disabled }: Props) {
       )}
 
       {transcribing && (
-        <div className="mt-3 flex items-center gap-2 font-mono text-[11px] text-slate-700">
+        <div className="mt-3 flex items-center gap-2 font-mono text-xs text-slate-700">
           <Loader size={13} className="animate-spin text-teal-600" />
           <span className="tabular-nums">Transcribing… {clock(elapsed)}</span>
           {stage && <span className="text-slate-500">— {stage}</span>}
@@ -648,25 +648,25 @@ export default function Capture({ onText, disabled }: Props) {
 
       {timedOut && pending && !transcribing && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2">
-          <span className="font-mono text-[11px] text-amber-900">
+          <span className="font-mono text-xs text-amber-900">
             Still transcribing after 3 minutes — the job is still running at the service.
           </span>
           <button
             type="button"
             onClick={() => void finishWith(pending)}
-            className="flex items-center gap-1.5 rounded border border-amber-400 bg-white px-2.5 py-1 text-[11px] font-medium text-amber-900 hover:bg-amber-100"
+            className="flex items-center gap-1.5 rounded border border-amber-400 bg-white px-2.5 py-1 text-xs font-medium text-amber-900 hover:bg-amber-100"
           >
             <RotateCw size={12} />
             Retry
           </button>
-          <span className="font-mono text-[10px] text-amber-800">
+          <span className="font-mono text-[11px] text-amber-800">
             Checks the same job again; nothing is re-uploaded.
           </span>
         </div>
       )}
 
       {shownError && (
-        <p className="mt-3 flex items-start gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-2 font-mono text-[11px] text-rose-700">
+        <p className="mt-3 flex items-start gap-2 rounded border border-rose-300 bg-rose-50 px-3 py-2 font-mono text-xs text-rose-700">
           <CircleX size={13} className="mt-0.5 shrink-0" />
           {shownError}
         </p>
@@ -674,13 +674,13 @@ export default function Capture({ onText, disabled }: Props) {
 
       {photoText && (
         <div className="mt-3 rounded border border-teal-300 bg-white p-3">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
             Read from the image
             <span className="ml-2 normal-case tracking-normal text-slate-400">
               check it before extracting — recognition errors are expected
             </span>
           </p>
-          <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
+          <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-4 text-slate-800">
             {photoText}
           </pre>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -690,14 +690,14 @@ export default function Capture({ onText, disabled }: Props) {
                 onText(photoText, { source: 'photo', kind: 'note' });
                 setPhotoText(null);
               }}
-              className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"
+              className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
             >
               Use this
             </button>
             <button
               type="button"
               onClick={() => setPhotoText(null)}
-              className="rounded border border-slate-300 px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:border-slate-400"
+              className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400"
             >
               Discard
             </button>
@@ -707,40 +707,40 @@ export default function Capture({ onText, disabled }: Props) {
 
       {voice && (
         <div className="mt-3 rounded border border-teal-300 bg-white p-3">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+          <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
             {voice.kind === 'consultation' ? 'Consultation transcript' : 'Dictation transcript'}
             <span className="ml-2 normal-case tracking-normal text-slate-400">
               check it before extracting — recognition errors are expected
             </span>
           </p>
-          <p className="mt-1 font-mono text-[10px] text-slate-500">
+          <p className="mt-1 font-mono text-[11px] text-slate-500">
             {voice.result.engine}
             {voice.result.detail ? ` · ${voice.result.detail}` : ''}
           </p>
 
           {speakers.length > 1 ? (
             <div className="mt-2 space-y-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-2">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                 {speakers.length} voices — tap who each one is
                 <span className="ml-2 normal-case tracking-normal text-slate-400">
                   unassigned speakers stay as “Speaker A”, “Speaker B”…
                 </span>
               </p>
               {voice.onDevice && (
-                <p className="font-mono text-[10px] text-amber-700">
+                <p className="font-mono text-[11px] text-amber-700">
                   On-device speaker separation is provisional — read the lines below before using
                   them.
                 </p>
               )}
               {speakers.map((speaker) => (
                 <div key={speaker} className="flex flex-wrap items-center gap-1.5">
-                  <span className="w-20 font-mono text-[10px] text-slate-700">Speaker {speaker}</span>
+                  <span className="w-20 font-mono text-[11px] text-slate-700">Speaker {speaker}</span>
                   {SPEAKER_ROLES.map((role) => (
                     <button
                       key={role}
                       type="button"
                       onClick={() => toggleRole(speaker, role)}
-                      className={`rounded border px-2 py-0.5 font-mono text-[10px] ${
+                      className={`rounded border px-2 py-0.5 font-mono text-[11px] ${
                         roles[speaker] === role
                           ? 'border-teal-500 bg-teal-50 text-teal-800'
                           : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
@@ -754,7 +754,7 @@ export default function Capture({ onText, disabled }: Props) {
             </div>
           ) : (
             voice.kind === 'consultation' && (
-              <p className="mt-1 font-mono text-[10px] text-amber-700">
+              <p className="mt-1 font-mono text-[11px] text-amber-700">
                 Only one voice was distinguishable. If two people spoke, move the other person’s
                 lines to Speaker {newSpeaker} below.
               </p>
@@ -763,7 +763,7 @@ export default function Capture({ onText, disabled }: Props) {
 
           {voice.kind === 'consultation' ? (
             <>
-              <p className="mt-2 font-mono text-[10px] text-slate-500">
+              <p className="mt-2 font-mono text-[11px] text-slate-500">
                 Wrong person on a line? Change it — each sentence can be moved on its own.
                 {editedLines.size > 0 && (
                   <span className="ml-1 text-amber-700">
@@ -793,13 +793,13 @@ export default function Capture({ onText, disabled }: Props) {
                       ))}
                       <option value={newSpeaker}>+ Speaker {newSpeaker} (new)</option>
                     </select>
-                    <span className="font-mono text-[11px] leading-4 text-slate-800">{line.text}</span>
+                    <span className="font-mono text-xs leading-4 text-slate-800">{line.text}</span>
                   </div>
                 ))}
               </div>
             </>
           ) : (
-            <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-[11px] leading-4 text-slate-800">
+            <pre className="mt-2 max-h-40 overflow-y-auto whitespace-pre-wrap font-mono text-xs leading-4 text-slate-800">
               {voice.result.text}
             </pre>
           )}
@@ -814,14 +814,14 @@ export default function Capture({ onText, disabled }: Props) {
                 });
                 setVoice(null);
               }}
-              className="rounded bg-slate-900 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-700"
+              className="rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
             >
               Use this
             </button>
             <button
               type="button"
               onClick={() => setVoice(null)}
-              className="rounded border border-slate-300 px-3 py-1.5 text-[11px] font-medium text-slate-700 hover:border-slate-400"
+              className="rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:border-slate-400"
             >
               Discard
             </button>

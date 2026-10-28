@@ -45,6 +45,10 @@
   Downloads and the session scratchpad; not in the repo): exact 61.8%, F1 0.847, ICD-10 exact 75% /
   category 100%, hallucination 2.6%, negation 0. Numbers are in the README. The real Track 2 dataset
   was not found on this machine; ask Kelvin where it is.
+- Verified live after deploy: extraction 3–6 s (was ~25 s); two-diagnosis note returns "I10, E11.9".
+- Visual polish pass (28 Oct, Kelvin asked): 12px base text in the consultation screen and Capture, teal
+  primary button, softer cards with shadow, three-step empty state, larger headings. Structure unchanged.
+  Not viewed visually (screenshots time out in this Chrome); Kelvin to eyeball.
 - Prompt now asks for one ICD-10 code per diagnosis, comma-separated (a two-diagnosis NCD note returned
   no code and fired a critical flag). Fonts: IBM Plex Sans/Mono via Google Fonts; tab title "MER Capture".
 - Possible next type: under-5 / immunisation clinic. Adding a type = a field list in `aliases.ts`,

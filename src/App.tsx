@@ -76,8 +76,8 @@ export default function App() {
           <div className="flex items-center gap-3">
             <Activity size={22} className="text-teal-400" />
             <div>
-              <h1 className="text-base font-semibold tracking-tight">MER Capture</h1>
-              <p className="font-mono text-[11px] text-slate-400">
+              <h1 className="text-lg font-semibold tracking-tight">MER Capture</h1>
+              <p className="text-xs text-slate-400">
                 Consultation to structured, coded record — Nigeria
               </p>
             </div>

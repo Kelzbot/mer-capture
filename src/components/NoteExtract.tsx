@@ -288,9 +288,9 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
-        <section className="rounded border border-slate-300 bg-white p-6">
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm p-6">
           <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">Consultation</h2>
+            <h2 className="text-base font-semibold tracking-tight text-slate-900">Consultation</h2>
             <select
               onChange={(e) => {
                 const sample = SAMPLE_NOTES[Number(e.target.value)];
@@ -299,7 +299,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                   setNoteKind('note');
                 }
               }}
-              className="ml-auto rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-700"
+              className="ml-auto rounded-lg border border-slate-200 bg-white shadow-sm px-2 py-1 font-mono text-xs text-slate-700"
               defaultValue="0"
             >
               {SAMPLE_NOTES.map((s, i) => (
@@ -322,16 +322,16 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             spellCheck={false}
-            className="mt-3 h-72 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-800"
+            className="mt-3 h-72 w-full resize-y rounded border border-slate-300 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-800"
           />
 
           <div className="mt-3 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+            <label className="flex items-center gap-2 font-mono text-xs text-slate-600">
               TYPE
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as Profile | 'auto')}
-                className="rounded border border-slate-300 bg-white px-2 py-1 text-slate-800"
+                className="rounded-lg border border-slate-200 bg-white shadow-sm px-2 py-1 text-slate-800"
               >
                 <option value="auto">Auto-detect</option>
                 {(Object.keys(PROFILE_LABELS) as Profile[]).map((p) => (
@@ -345,28 +345,28 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
               type="button"
               onClick={run}
               disabled={busy || !apiKey.trim() || !noteText.trim()}
-              className="flex items-center gap-2 rounded bg-slate-900 px-4 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-40"
+              className="flex items-center gap-2 rounded-md bg-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-teal-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
             >
               {busy ? <Loader size={14} className="animate-spin" /> : <Sparkles size={14} />}
               {busy ? 'Extracting…' : 'De-identify and extract'}
             </button>
             {!apiKey.trim() && (
-              <span className="font-mono text-[10px] text-amber-700">Enter an API key above</span>
+              <span className="font-mono text-[11px] text-amber-700">Enter an API key above</span>
             )}
           </div>
 
           {error && (
-            <p className="mt-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 font-mono text-[11px] leading-4 text-rose-700">
+            <p className="mt-3 rounded border border-rose-300 bg-rose-50 px-3 py-2 font-mono text-xs leading-4 text-rose-700">
               {error}
             </p>
           )}
 
           {result && (
             <div className="mt-4">
-              <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+              <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                 Source — hover a field to locate its evidence
               </p>
-              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-700">
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700">
                 {highlight ? (
                   <>
                     {sourceText.slice(0, highlight.start)}
@@ -383,16 +383,16 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
           )}
         </section>
 
-        <section className="rounded border border-slate-300 bg-white p-6">
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm p-6">
           <div className="flex flex-wrap items-baseline gap-3">
-            <h2 className="text-sm font-semibold text-slate-800">Extracted fields</h2>
+            <h2 className="text-base font-semibold tracking-tight text-slate-900">Extracted fields</h2>
             {result && (
               <>
-                <span className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5 font-mono text-[10px] text-teal-700">
+                <span className="rounded border border-teal-200 bg-teal-50 px-2 py-0.5 font-mono text-[11px] text-teal-700">
                   {PROFILE_LABELS[result.profile]}
                   {type === 'auto' && ' · detected'}
                 </span>
-                <span className="font-mono text-[10px] text-slate-500">
+                <span className="font-mono text-[11px] text-slate-500">
                   {Object.keys(result.fields).length} fields
                 </span>
               </>
@@ -400,11 +400,25 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
           </div>
 
           {!result ? (
-            <p className="mt-4 font-mono text-[11px] text-slate-500">
-              Nothing extracted yet. The note is de-identified in this browser before any request is sent.
-            </p>
+            <ol className="mt-4 space-y-3 text-sm text-slate-600">
+              {[
+                'Paste a note, or record, upload or photograph the consultation.',
+                'Leave TYPE on Auto-detect, or pick the clinic yourself.',
+                'Extract. Every value shows its confidence and the sentence it came from; edit, then sign off.',
+              ].map((step, i) => (
+                <li key={step} className="flex gap-3">
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 font-mono text-[11px] font-semibold text-slate-600">
+                    {i + 1}
+                  </span>
+                  <span className="leading-6">{step}</span>
+                </li>
+              ))}
+              <li className="pl-9 font-mono text-[11px] text-slate-500">
+                Identifiers are removed in this browser before anything is sent.
+              </li>
+            </ol>
           ) : Object.keys(result.fields).length === 0 ? (
-            <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
+            <p className="mt-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-4 text-amber-800">
               The model found no extractable fields in this note. That is a valid outcome — an empty
               record is preferable to an invented one.
             </p>
@@ -415,7 +429,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                 if (present.length === 0) return null;
                 return (
                   <div key={section.title}>
-                    <h3 className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                    <h3 className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                       {section.title}
                     </h3>
                     <div className="mt-2 space-y-1.5">
@@ -430,7 +444,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                               hovered === field ? 'bg-amber-50' : ''
                             }`}
                           >
-                            <label className="flex items-center gap-2 text-[11px] text-slate-700">
+                            <label className="flex items-center gap-2 text-xs text-slate-700">
                               <span
                                 title={`confidence ${extraction.confidence.toFixed(2)}`}
                                 className={`h-2 w-2 shrink-0 rounded-full ${confidenceTone(extraction.confidence)}`}
@@ -442,7 +456,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                               onChange={(e) =>
                                 setEdits((prev) => ({ ...prev, [field]: e.target.value }))
                               }
-                              className="w-full rounded border border-slate-300 bg-white px-2 py-1 font-mono text-[11px] text-slate-800"
+                              className="w-full rounded-lg border border-slate-200 bg-white shadow-sm px-2 py-1 font-mono text-xs text-slate-800"
                             />
                           </div>
                         );
@@ -457,7 +471,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
           {result && result.warnings.length > 0 && (
             <ul className="mt-4 space-y-1 border-t border-slate-200 pt-3">
               {result.warnings.map((w) => (
-                <li key={w} className="font-mono text-[10px] text-amber-700">
+                <li key={w} className="font-mono text-[11px] text-amber-700">
                   {w}
                 </li>
               ))}
@@ -469,39 +483,39 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       {result && analysis && (
         <div className={`grid gap-6 ${isHiv(result.profile) ? 'lg:grid-cols-2' : ''}`}>
           {isHiv(result.profile) && (
-          <section className="rounded border border-slate-300 bg-white p-6">
-            <h3 className="text-sm font-semibold text-slate-800">Indicators for this record</h3>
-            <p className="mt-1 font-mono text-[10px] text-slate-500">
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm p-6">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900">Indicators for this record</h3>
+            <p className="mt-1 font-mono text-[11px] text-slate-500">
               Computed by indicators.ts from the edited values above — no model involvement.
             </p>
             <ul className="mt-4 space-y-2">
               {Object.values(analysis.results).map((r) => (
                 <li key={r.code} className="border-b border-slate-100 pb-2 last:border-0">
                   <div className="flex items-center gap-2">
-                    <span className="font-mono text-[11px] font-semibold text-slate-900">{r.code}</span>
+                    <span className="font-mono text-xs font-semibold text-slate-900">{r.code}</span>
                     <span className={`rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase ${statusTone(r.status)}`}>
                       {r.status.replace('_', ' ')}
                     </span>
                   </div>
-                  <p className="mt-1 text-[11px] leading-4 text-slate-600">{r.reason}</p>
+                  <p className="mt-1 text-xs leading-4 text-slate-600">{r.reason}</p>
                 </li>
               ))}
             </ul>
           </section>
           )}
 
-          <section className="rounded border border-slate-300 bg-white p-6">
-            <h3 className="text-sm font-semibold text-slate-800">
+          <section className="rounded-lg border border-slate-200 bg-white shadow-sm p-6">
+            <h3 className="text-base font-semibold tracking-tight text-slate-900">
               Quality flags
-              <span className="ml-2 font-mono text-[11px] font-normal text-slate-500">
+              <span className="ml-2 font-mono text-xs font-normal text-slate-500">
                 {analysis.flags.length}
               </span>
             </h3>
-            <p className="mt-1 font-mono text-[10px] text-slate-500">
+            <p className="mt-1 font-mono text-[11px] text-slate-500">
               Rule-based checks on the edited values above — no model involvement.
             </p>
             {analysis.flags.length === 0 ? (
-              <p className="mt-4 font-mono text-[11px] text-slate-500">No flags raised.</p>
+              <p className="mt-4 font-mono text-xs text-slate-500">No flags raised.</p>
             ) : (
               <ul className="mt-4 space-y-2">
                 {analysis.flags.map((f, i) => (
@@ -516,9 +530,9 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                       >
                         {f.severity}
                       </span>
-                      <span className="font-mono text-[10px] text-slate-500">{f.rule}</span>
+                      <span className="font-mono text-[11px] text-slate-500">{f.rule}</span>
                     </div>
-                    <p className="mt-1 text-[11px] leading-4 text-slate-600">{f.message}</p>
+                    <p className="mt-1 text-xs leading-4 text-slate-600">{f.message}</p>
                   </li>
                 ))}
               </ul>
@@ -528,7 +542,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       )}
 
       {result && (
-        <section className="rounded border border-slate-300 bg-white">
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <button
             type="button"
             onClick={() => setShowTransmitted(!showTransmitted)}
@@ -538,7 +552,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
             <ShieldCheck size={15} className="text-teal-600" />
             Exactly what left this browser
             {counts && (
-              <span className="ml-auto font-mono text-[10px] font-normal text-slate-500">
+              <span className="ml-auto font-mono text-[11px] font-normal text-slate-500">
                 {counts.NAME} names · {counts.PHONE} phone numbers · {counts.ID} identifiers removed
               </span>
             )}
@@ -546,7 +560,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
 
           {showTransmitted && (
             <div className="space-y-4 border-t border-slate-200 px-6 py-4">
-              <dl className="grid gap-3 font-mono text-[11px] sm:grid-cols-3">
+              <dl className="grid gap-3 font-mono text-xs sm:grid-cols-3">
                 <div>
                   <dt className="text-slate-500">PROVIDER</dt>
                   <dd className="text-slate-800">{PROVIDER_LABELS[result.transmitted.provider]}</dd>
@@ -562,33 +576,33 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
               </dl>
 
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                   De-identified note as transmitted
                 </p>
-                <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-5 text-slate-700">
+                <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-xs leading-5 text-slate-700">
                   {result.transmitted.redacted}
                 </pre>
               </div>
 
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                   Full prompt as transmitted
                 </p>
-                <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[10px] leading-4 text-slate-600">
+                <pre className="mt-1 max-h-56 overflow-auto whitespace-pre-wrap rounded border border-slate-200 bg-slate-50 p-3 font-mono text-[11px] leading-4 text-slate-600">
                   {result.transmitted.prompt}
                 </pre>
               </div>
 
               <div>
-                <p className="font-mono text-[10px] uppercase tracking-wide text-slate-500">
+                <p className="font-mono text-[11px] uppercase tracking-wide text-slate-500">
                   Identifiers held in this tab only — never transmitted
                 </p>
                 {result.transmitted.entries.length === 0 ? (
-                  <p className="mt-1 font-mono text-[11px] text-slate-500">
+                  <p className="mt-1 font-mono text-xs text-slate-500">
                     Nothing matched the identifier patterns in this note.
                   </p>
                 ) : (
-                  <ul className="mt-1 space-y-0.5 font-mono text-[11px]">
+                  <ul className="mt-1 space-y-0.5 font-mono text-xs">
                     {result.transmitted.entries.map((e) => (
                       <li key={e.token} className="flex gap-3">
                         <span className="w-24 shrink-0 text-teal-700">{e.token}</span>
@@ -604,14 +618,14 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
       )}
 
       {result && (
-        <section className="rounded border border-slate-300 bg-white p-6">
-          <h3 className="text-sm font-semibold text-slate-800">Export</h3>
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm p-6">
+          <h3 className="text-base font-semibold tracking-tight text-slate-900">Export</h3>
           <p className="mt-1 text-xs text-slate-600">
             Model output is a draft. A named clinician must confirm the values before this record leaves
             the tool.
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-4">
-            <label className="flex items-center gap-2 font-mono text-[11px] text-slate-600">
+            <label className="flex items-center gap-2 font-mono text-xs text-slate-600">
               CLINICIAN
               <input
                 value={clinician}
@@ -620,7 +634,7 @@ export default function NoteExtract({ apiKey, provider, period }: Props) {
                 className="rounded border border-slate-300 px-2 py-1 text-slate-800"
               />
             </label>
-            <label className="flex max-w-md items-start gap-2 text-[11px] leading-4 text-slate-700">
+            <label className="flex max-w-md items-start gap-2 text-xs leading-4 text-slate-700">
               <input
                 type="checkbox"
                 checked={confirmed}
